@@ -1,4 +1,4 @@
-import { JsonPatchOp } from "./contracts";
+import { JsonPatchOp } from "../../src/types/contracts";
 import CID from 'cids'
 
 export interface CoreBaseTransaction {

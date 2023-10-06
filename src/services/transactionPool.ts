@@ -18,8 +18,8 @@ import { HiveClient, unwrapDagJws } from '../utils'
 import { init } from '../transactions/core'
 import { ContractManifest } from '../types/contracts'
 import Axios from 'axios'
-import { CoreBaseTransaction, CoreTransactionTypes, CreateContract, Deposit, EnableWitness, JoinContract, LeaveContract, WithdrawFinalization, WithdrawRequest } from '../types/coreTransactions'
-import { ContractInput, VSCTransactionTypes } from '../types/vscTransactions'
+import { CoreBaseTransaction, CoreTransactionTypes, CreateContract, Deposit, EnableWitness, JoinContract, LeaveContract, WithdrawFinalization, WithdrawRequest } from '../../lib/types/coreTransactions'
+import { ContractInput, VSCTransactionTypes } from '../../lib/types/vscTransactions'
 import { PeerChannel } from './pubsub'
 const {BloomFilter} = BloomFilters
 

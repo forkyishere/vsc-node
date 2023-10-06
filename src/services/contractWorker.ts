@@ -4,7 +4,7 @@ import { CommitmentStatus } from "../types/contracts";
 import { TransactionDbStatus, TransactionRaw, TransactionDbType } from '../types';
 import { BenchmarkContainer } from '../utils';
 import { CID } from 'kubo-rpc-client';
-import { ContractOutput, VSCTransactionTypes } from '../types/vscTransactions';
+import { ContractOutput, VSCTransactionTypes } from '../../lib/types/vscTransactions';
 
 export class ContractWorker {
     self: CoreService

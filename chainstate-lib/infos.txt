@@ -1,0 +1,2 @@
+- the library should use/ be able to interpret the same config as a vsc node
+- TODONEW for things that need to be refactored but should wait for other stuff to be completed/ working first
