@@ -1,3 +1,4 @@
+import { DagJWS } from "dids";
 import { JsonPatchOp } from "../../src/types/contracts";
 import CID from 'cids'
 
@@ -33,6 +34,18 @@ export interface EnableWitness extends CoreBaseTransaction {
   node_id: string;
 }
 
+export interface AllowWitness extends CoreBaseTransaction {
+  action: CoreTransactionTypes.allow_witness;
+  node_id: string;
+  proof: DagJWS;
+}
+
+export interface DissallowWitness extends CoreBaseTransaction {
+  action: CoreTransactionTypes.allow_witness;
+  node_id: string;
+  proof: DagJWS;
+}
+
 export interface CreateContract extends CoreBaseTransaction {
   manifest_id: string;
   action: CoreTransactionTypes.create_contract;
@@ -52,6 +65,22 @@ export interface LeaveContract extends CoreBaseTransaction {
   contract_id: string;
   node_identity: string;
   node_id: string;
+}
+
+// pla: TODONEW think abt if it makes sense to put the hive tx format into a type
+// maybe do so but just take in the most important props
+// eg     transaction_id,
+//        expiration
+// export interface HiveTxInfo
+// use in various places in chainParserHIVE
+
+export interface TxMetadata {
+  account: string;
+  timestamp: Date;
+  block_height: string;
+  amount?: string;
+  to?: string;
+  memo?: string;
 }
 
 export enum CoreTransactionTypes {

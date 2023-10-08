@@ -6,6 +6,7 @@ import { HiveClient } from '../utils'
 import { PrivateKey } from '@hiveio/dhive'
 import { CoreService } from '../services'
 import { init } from './core'
+import { AllowWitness } from '../../chainstate-lib/types/coreTransactions'
 
 
 void (async () => {
@@ -39,7 +40,7 @@ void (async () => {
                 ts: new Date(),
                 net_id: setup.config.get('network.id'),
             }),
-        }),
+        } as AllowWitness),
     }, PrivateKey.fromString(process.env.HIVE_ACCOUNT_POSTING))
 
     console.log(hiveResult)
