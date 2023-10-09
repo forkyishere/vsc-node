@@ -1,5 +1,5 @@
 import { CID } from "kubo-rpc-client"
-import { JsonPatchOp } from "../../src/types/contracts"
+import { JsonPatchOp } from "./contracts"
 
 export interface CoreVSCTransaction {
     action: string;

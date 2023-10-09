@@ -433,37 +433,6 @@ export async function verifyMultiJWS(dagJws: DagJWS, signer: DID) {
     auths
   }
 }
-export async function verifyMultiDagJWS(dagJws: DagJWS, signer: DID) {
-  let auths = []; 
-
-  for(let sig of dagJws.signatures) {
-    const obj = {
-      link: dagJws.link,
-      signatures: [sig],
-      payload: dagJws.payload,
-    }
-    const {kid} = await signer.verifyJWS(obj)
-    
-    auths.push(kid.split('#')[0])
-  }
-
-  return {
-    payload: dagJws.payload,
-    link: dagJws.link,
-    auths
-  }
-}
-
-
-
-export async function unwrapDagJws(dagJws: any, ipfs: IPFSHTTPClient, signer: DID) {
-  const dag = await verifyMultiDagJWS(dagJws, signer)
-
-  return {
-    ...dag,
-    content: (await ipfs.dag.get((dag as any).link)).value
-  }
-}
 
 export async function createJwsMultsign(data: any, signers: DID[]) {
   let signatures = []

@@ -1,6 +1,6 @@
 import NodeSchedule from 'node-schedule'
 import { CoreService } from "./index"
-import { CommitmentStatus } from "../types/contracts";
+import { CommitmentStatus } from "../../chainstate-lib/types/contracts";
 import { TransactionDbStatus, TransactionRaw, TransactionDbType } from '../types';
 import { BenchmarkContainer } from '../utils';
 import { CID } from 'kubo-rpc-client';

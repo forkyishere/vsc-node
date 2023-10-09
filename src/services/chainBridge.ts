@@ -11,7 +11,7 @@ import type PQueue from 'p-queue'
 import { VMScript } from 'vm2'
 import * as vm from 'vm';
 import Pushable from 'it-pushable'
-import { CommitmentStatus, Contract, ContractCommitment } from '../types/contracts'
+import { CommitmentStatus, Contract, ContractCommitment } from '../../chainstate-lib/types/contracts'
 import EventEmitter from 'events'
 import { DagJWS, DagJWSResult, DID } from 'dids'
 import { BalanceController, BlockHeader, BlockRecord, BlockRef, Deposit, DepositDrain, DidAuth, DidAuthRecord, TimeLock, TransactionConfirmed, TransactionDbStatus, TransactionDbType, WithdrawLock } from '../types'

@@ -1,5 +1,5 @@
 import { DagJWS } from "dids";
-import { JsonPatchOp } from "../../src/types/contracts";
+import { JsonPatchOp } from "./contracts";
 import CID from 'cids'
 
 export interface CoreBaseTransaction {

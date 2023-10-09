@@ -1,6 +1,6 @@
 // import { ContractOutputRaw } from './contracts'
 
-export * from './contracts'
+export * from '../../chainstate-lib/types/contracts'
 
 export enum NodeStorageType {
   //Stores complete state copies at every block rather than most recent state copy.

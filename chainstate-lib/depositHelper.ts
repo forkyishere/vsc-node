@@ -1,5 +1,16 @@
+import { Collection } from "mongodb";
+import { ChainStateLib } from "./ChainStateLib";
+import { Deposit, DepositDrain } from "./types/balanceData";
+import { BlockRef } from "./types/blockData";
+
 // houses deposit related methods, used by the HIVE *AND* the VSC chain parser
-export class DepositOperations {
+export class DepositHelper {
+  balanceDb: Collection<Deposit>;
+
+  constructor(balanceDb: Collection<Deposit>) {
+    this.balanceDb = balanceDb;
+  }
+
   // used when a withdraw/ transfer has taken place and the outputs of the deposits are updated with their reference deposits that received the balance
   async updateSourceDeposits(depositDrains: Array<DepositDrain>, targetDepositId: string) {
     for (let depositDrain of depositDrains) {
