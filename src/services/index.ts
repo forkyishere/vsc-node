@@ -24,6 +24,7 @@ import { WitnessService } from "./witness";
 import networks from "./networks";
 import { DiscordBot } from "./discordbot";
 import { ModuleContainer } from "../utils";
+import { ChainStateLib, IChainStateLib } from "../../chainstate-lib/ChainStateLib";
 interface CoreOptions {
     dbSuffix?: string
     mode?: 'lite'
@@ -40,6 +41,7 @@ export class CoreService extends ModuleContainer {
     contractEngine: ContractEngine;
     p2pService: P2PService;
     contractWorker: ContractWorker;
+    chainStateLib: IChainStateLib;
     logger: winston.Logger;
     loggerSettings: LoggerConfig;
     // multisig: MultisigCore;
@@ -55,7 +57,11 @@ export class CoreService extends ModuleContainer {
         super('core')
         this.mode = coreSettings?.mode
 
-
+        this.logger = getLogger(this.loggerSettings || {
+            prefix: 'core',
+            printMetadata: this.config.get('logger.printMetadata'),
+            level: this.config.get('logger.level'),
+        })
 
         this.transactionPool = new TransactionPoolService(this)
         this.chainBridge = new ChainBridge(this)
@@ -66,6 +72,7 @@ export class CoreService extends ModuleContainer {
         this.witness = new WitnessService(this)
         this.multisig = new MultisigCore(this, this.witness)
         this.discordBot = new DiscordBot(this)
+        this.chainStateLib = new ChainStateLib(this.db, this.ipfs, this.identity, this.logger)
 
 
         this.regModule('TransactionPoolService', this.transactionPool)
@@ -77,6 +84,7 @@ export class CoreService extends ModuleContainer {
         this.regModule('WitnessService', this.witness)
         this.regModule('MultisigCore', this.multisig)
         this.regModule('DiscordBot', this.discordBot)
+        this.chainStateLib.registerModules(this.regModule.bind(this))
 
         this.regNames()
     }
@@ -163,15 +171,11 @@ export class CoreService extends ModuleContainer {
         console.log('Starting')
         this.config = new Config(Config.getConfigDir())
         await this.config.open()
+        this.chainStateLib.setConfig(this.config)
+
         this.ipfs = IPFSHTTP.create({ url: process.env.IPFS_HOST || this.config.get('ipfs.apiAddr')});
         this.networkId = this.config.get('network.id')
-        this.logger = getLogger(this.loggerSettings || {
-            prefix: 'core',
-            printMetadata: this.config.get('logger.printMetadata'),
-            level: this.config.get('logger.level'),
-        })
         this.db = this.config.get('setupIdentification.dbSuffix') !== undefined && this.config.get('setupIdentification.dbSuffix') !== '' ? mongo.db('vsc-' + this.config.get('setupIdentification.dbSuffix')) : mongo.db('vsc')
-
 
         await mongo.connect()
         if (this.config.get('debug.dropTablesOnStartup')) {

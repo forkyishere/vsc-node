@@ -26,7 +26,12 @@ export interface IChainStateLib {
     didAuths: Collection;
     contractDb: Collection<Contract>;
     logger: winston.Logger;
-    init(): Promise<void>;
+    registerModules(registerMethod: (name: string, regClass: object) => void): Promise<void>;
+    setConfig(config: ChainStateLibConfig): void;
+}
+
+interface ChainStateLibConfig {
+    get(key: string): any;
 }
 
 export class ChainStateLib implements IChainStateLib {
@@ -44,10 +49,14 @@ export class ChainStateLib implements IChainStateLib {
     public identity: DID;
     public logger: winston.Logger
     public depositHelper: DepositHelper;
+    public config: ChainStateLibConfig;
     private db: Db;
 
-    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID) {
+    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: winston.Logger) {
         this.db = db;
+        this.ipfs = ipfs;
+        this.identity = identity;
+        this.logger = logger;
         this.stateHeaders = this.db.collection('state_headers');
         this.blockHeaders = this.db.collection<BlockHeader>('block_headers');
         this.witnessDb = this.db.collection('witnesses');
@@ -61,9 +70,14 @@ export class ChainStateLib implements IChainStateLib {
         this.depositHelper = new DepositHelper(this.balanceDb);        
     }
 
-    // pla: how to pass config? use same config as vsc nodes use!?
+    // pla: how to pass config? use same config vsc nodes use!?
 
-    public async init() {
-        console.log('ChainStateLib init');
+    public setConfig(config: ChainStateLibConfig) {
+        this.config = config;
+    }
+
+    public async registerModules(registerMethod: (name: string, regClass: object) => void) {
+        registerMethod('ChainParserVSC', this.chainParserVSC);
+        registerMethod('ChainParserHIVE', this.chainParserHIVE);
     }
 }

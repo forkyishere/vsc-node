@@ -1,4 +1,4 @@
-import { Collection } from "mongodb"
+import { Collection, Join } from "mongodb"
 import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, Deposit, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
 import { ChainStateLib } from "./ChainStateLib"
 import { CID } from "kubo-rpc-client/dist/src"
@@ -11,12 +11,15 @@ import { TransactionDbStatus } from "./types/vscTransactions"
 
 export class ChainParserHIVE {
   private self: ChainStateLib
+  // pla: for each of the received transactions emit an event, so that other parts of the application can react to it
+  // e.g.: 
+  // withdrawRequestEmitted: EventEmitter<WithdrawRequest> = new EventEmitter();
 
   constructor(self: ChainStateLib) {
     this.self = self
   }
 
-  async countHeight(id: string) {
+  private async countHeight(id: string) {
     let block = (await this.self.ipfs.dag.get(CID.parse(id))).value
     let height = 0
 
@@ -33,7 +36,7 @@ export class ChainParserHIVE {
     return height
   }
 
-  async enableWitness(account: string, enableWitnessTx: EnableWitness) {
+  private async enableWitness(account: string, enableWitnessTx: EnableWitness) {
     // TODONEW check if .did is actually input into the tx 
     await this.self.witnessDb.findOneAndUpdate({
       name: account
@@ -48,7 +51,7 @@ export class ChainParserHIVE {
     })
   }
 
-  async disableWitness(account: string) {
+  private async disableWitness(account: string) {
     await this.self.witnessDb.findOneAndUpdate({
       name: account
     }, {
@@ -60,7 +63,7 @@ export class ChainParserHIVE {
     })
   }
 
-  async changeWitnessState(hiveTimestamp: Date, witnessChangeTx: AllowWitness | DissallowWitness, state: boolean) {
+  private async changeWitnessState(hiveTimestamp: Date, witnessChangeTx: AllowWitness | DissallowWitness, state: boolean) {
     const verifyData = await this.self.identity.verifyJWS(witnessChangeTx.proof)
     console.log('allow witness', verifyData)
     console.log(witnessChangeTx, verifyData.payload)
@@ -83,7 +86,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async dissallowWitness(hiveTimestamp: number, dissallowWitnessTx: DissallowWitness) {
+  private async dissallowWitness(hiveTimestamp: number, dissallowWitnessTx: DissallowWitness) {
     const verifyData = await this.self.identity.verifyJWS(dissallowWitnessTx.proof)
     console.log('allow witness', verifyData)
     // console.log(tx, verifyData.payload)
@@ -106,7 +109,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async retrieveVSCBlock(txInfo: TxMetadata, announceBlockTx: AnnounceBlock) {
+  private async retrieveVSCBlock(txInfo: TxMetadata, announceBlockTx: AnnounceBlock) {
     /**
       * TODO: Calculate expected witness account
       */
@@ -143,7 +146,7 @@ export class ChainParserHIVE {
     })
   }
 
-  async createContract(tx: any, createContractTx: CreateContract) {
+  private async createContract(tx: any, createContractTx: CreateContract) {
     try {
       await this.self.contractDb.insertOne({
         id: tx.transaction_id,
@@ -159,7 +162,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async joinContract(tx: any, joinContractTx: JoinContract) {
+  private async joinContract(tx: any, joinContractTx: JoinContract) {
     const commitment = await this.self.contractCommitmentDb.findOne({
       contract_id: joinContractTx.contract_id,
       node_identity: joinContractTx.node_identity
@@ -192,7 +195,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async leaveContract(leaveContractTx: LeaveContract) {
+  private async leaveContract(leaveContractTx: LeaveContract) {
     const commitment = await this.self.contractCommitmentDb.findOne({
       contract_id: leaveContractTx.contract_id,
       node_identity: leaveContractTx.node_identity
@@ -209,7 +212,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async deposit(tx: any, depositTx: Deposit, txInfo: TxMetadata) {
+  private async deposit(tx: any, depositTx: Deposit, txInfo: TxMetadata) {
     if (txInfo.to === networks[this.self.config.get('network.id')].multisigAccount) {
       const balanceController = { type: 'HIVE', authority: depositTx.to ?? txInfo.account, conditions: [] } as BalanceController
 
@@ -243,7 +246,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async withdrawRequest(tx: any, withdrawRequestTx: WithdrawRequest, txInfo: TxMetadata) {
+  private async withdrawRequest(tx: any, withdrawRequestTx: WithdrawRequest, txInfo: TxMetadata) {
     let deposits = await this.self.depositHelper.getUserControlledBalances(txInfo.account);
 
     const currentBlock = {
@@ -302,11 +305,11 @@ export class ChainParserHIVE {
 
       // TODONEW: DONT DO HERE, DO ON EVENT EMIT?
       // pla: TODO STORE in a database so the tasks for the multisig allowed nodes are not lost on restart
-      this.multiSigWithdrawBuffer.push(deposit);
+      // this.multiSigWithdrawBuffer.push(deposit);
     }
   }
 
-  async withdrawFinalization(tx: any, withdrawFinalizationTx: WithdrawFinalization, txInfo: TxMetadata) {
+  private async withdrawFinalization(tx: any, withdrawFinalizationTx: WithdrawFinalization, txInfo: TxMetadata) {
     if (tx.from === networks[this.self.config.get('network.id')].multisigAccount) {
       const transferedCurrency = TransactionPoolService.parseFormattedAmount(txInfo.amount);
 
@@ -329,7 +332,7 @@ export class ChainParserHIVE {
     }
   }
 
-  async processCoreTransaction(tx: any, json: CoreBaseTransaction, txInfo: TxMetadata) {
+  private async processCoreTransaction(tx: any, json: CoreBaseTransaction, txInfo: TxMetadata) {
     if (json.net_id !== this.self.config.get('network.id')) {
       this.self.logger.warn('received transaction from a different network id! - will not process')
       return;
@@ -338,7 +341,7 @@ export class ChainParserHIVE {
 
     switch (json.action) {
       case CoreTransactionTypes.enable_witness:
-        this.enableWitness(txInfo.account, json);
+        this.enableWitness(txInfo.account, <EnableWitness>json);
         break;
       case CoreTransactionTypes.disable_witness:
         this.disableWitness(txInfo.account);
@@ -350,29 +353,30 @@ export class ChainParserHIVE {
         this.changeWitnessState(txInfo.timestamp, <DissallowWitness>json, false)
         break;
       case CoreTransactionTypes.announce_block:
-        this.retrieveVSCBlock(txInfo, json)
+        this.retrieveVSCBlock(txInfo, <AnnounceBlock>json)
         break;
       case CoreTransactionTypes.create_contract:
-        this.createContract(tx, json)
+        this.createContract(tx, <CreateContract>json)
         break;
       case CoreTransactionTypes.join_contract:
-        this.joinContract(tx, json)
+        this.joinContract(tx, <JoinContract>json)
         break;
       case CoreTransactionTypes.leave_contract:
-        this.leaveContract(json)
+        this.leaveContract(<LeaveContract>json)
         break;
       case CoreTransactionTypes.deposit:
-        this.deposit(tx, json, txInfo)
+        this.deposit(tx, <Deposit>json, txInfo)
         break;
       case CoreTransactionTypes.withdraw_finalization:
-        this.withdrawFinalization(tx, json, txInfo)
-        break;
-      case CoreTransactionTypes.withdraw_finalization:
-        this.withdrawFinalization(tx, json, txInfo)
+        this.withdrawFinalization(tx, <WithdrawFinalization>json, txInfo)
         break;
       default:
-        this.self.logger.warn('not recognized tx type', withdrawFinalizationTx.action)
+        this.self.logger.warn('not recognized tx type', json.action)
         break;
     }
+  }
+
+  async start() {
+    // TODONEW subscribe to the hive blockstream here
   }
 }
