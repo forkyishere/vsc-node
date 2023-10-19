@@ -7,7 +7,7 @@ export interface CoreBaseTransaction {
   net_id: string;
 }
 
-export interface Deposit extends CoreBaseTransaction {
+export interface DepositAction extends CoreBaseTransaction {
   action: CoreTransactionTypes.deposit;  
   to?: string; // pla: deposit on someone elses behave
   contract_id?: string;
@@ -32,6 +32,7 @@ export interface AnnounceBlock extends CoreBaseTransaction {
 export interface EnableWitness extends CoreBaseTransaction {
   action: CoreTransactionTypes.enable_witness;
   node_id: string;
+  did: string;
 }
 
 export interface AllowWitness extends CoreBaseTransaction {

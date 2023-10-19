@@ -21,6 +21,7 @@ import Axios from 'axios'
 import { CoreBaseTransaction, CoreTransactionTypes, CreateContract, Deposit, EnableWitness, JoinContract, LeaveContract, WithdrawFinalization, WithdrawRequest } from '../../lib/types/coreTransactions'
 import { ContractInput, VSCTransactionTypes } from '../../lib/types/vscTransactions'
 import { PeerChannel } from './pubsub'
+import { DepositAction } from '../../chainstate-lib/types/coreTransactions'
 const {BloomFilter} = BloomFilters
 
 const INDEX_RULES = {}
@@ -53,13 +54,6 @@ export class TransactionPoolService {
     const formattedAmount = Number(amount).toFixed(3);
     
     return `${formattedAmount} ${assetSymbol}`;
-  }
-
-  public static parseFormattedAmount(formattedAmount): {amount: number, assetSymbol: string} {
-    const [amountStr, assetSymbol] = formattedAmount.split(' ');
-    const amount = parseFloat(amountStr);
-  
-    return { amount, assetSymbol };
   }
 
   private static async createCoreTransaction(id: string, json: CoreBaseTransaction, setup: {identity, config, ipfsClient}) {
@@ -181,7 +175,8 @@ export class TransactionPoolService {
 
     const json: EnableWitness = {
       net_id: setup.config.get('network.id'),
-      node_id: nodeInfo.peer_id
+      node_id: nodeInfo.peer_id,
+      did: setup.identity.id // TODONEW is this the correct DID?
     } as EnableWitness
 
     const result = await this.createCoreTransaction("vsc.enable_witness", json, setup)
@@ -198,7 +193,7 @@ export class TransactionPoolService {
       net_id: setup.config.get('network.id'),
       action: CoreTransactionTypes.deposit,
       to: args.to
-    } as Deposit)
+    } as DepositAction)
 
     if (args.contractId) {
       memo['contract_id'] = args.contractId

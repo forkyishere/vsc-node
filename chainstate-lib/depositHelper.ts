@@ -111,4 +111,11 @@ export class DepositHelper {
 
     return balance;
   }
+
+  public static parseFormattedAmount(formattedAmount): {amount: number, assetSymbol: string} {
+    const [amountStr, assetSymbol] = formattedAmount.split(' ');
+    const amount = parseFloat(amountStr);
+  
+    return { amount, assetSymbol };
+  }
 }

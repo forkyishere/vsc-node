@@ -1,3 +1,4 @@
+import { BlockRef } from "./blockData";
 
 // this interface is used for deposits to a contract and to a users personal balance (safe)
 export interface Deposit {
@@ -42,11 +43,6 @@ export interface BalanceController {
   export interface WithdrawLock extends BalanceAccessCondition {
     type: 'WITHDRAW',
     expiration_block: number
-  }
-  
-  export interface DepositDrain {
-    deposit_id: string,
-    amount: number
   }
   
   export interface DepositDrain {

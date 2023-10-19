@@ -2,6 +2,7 @@ import { CID } from "kubo-rpc-client/dist/src";
 import { ChainStateLib } from "./ChainStateLib";
 import { ContractInput, ContractOutput, TransactionConfirmed, TransactionDbStatus, TransactionDbType, VSCTransactionTypes } from "./types/vscTransactions";
 import { JwsHelper } from "./jwsHelper";
+import NodeSchedule from 'node-schedule'
 
 export class ChainParserVSC {
   private self: ChainStateLib;
@@ -156,6 +157,49 @@ export class ChainParserVSC {
     }
   }
 
+  private async countHeight(id: string) {
+    let block = (await this.self.ipfs.dag.get(CID.parse(id))).value
+    let height = 0
+
+    for (; ;) {
+      if (block.previous) {
+        block = (await this.self.ipfs.dag.get(block.previous)).value
+        height = height + 1
+      } else {
+        break
+      }
+    }
+
+    this.self.logger.debug('counted block height', height)
+    return height
+  }
+
+  private processVSCBlocks() {
+    void (async () => {
+      for await (let block of this.self.chainParserHIVE.vscBlockStream) {
+        console.log('vsc block', block)
+
+        const blockContent = (await this.self.ipfs.dag.get(CID.parse(block.block_hash))).value
+        console.log(blockContent)
+
+        await this.self.blockHeaders.insertOne({
+          height: await this.countHeight(block.block_hash),
+          id: block.block_hash,
+          hive_ref_block: block.tx.block_num,
+          hive_ref_tx: block.tx.transaction_id,
+          hive_ref_date: block.timestamp
+          // witnessed_by: {
+          //   hive_account: block.tx.posting
+          // }
+        })
+
+        for (let tx of blockContent.txs) {
+          await this.processVSCBlockTransaction(tx, block.block_hash);
+        }
+      }
+    })()
+  }
+
   /**
  * Verifies content in mempool is accessible
  */
@@ -184,7 +228,15 @@ export class ChainParserVSC {
     }
   }
 
+  
+
   async start() {
-    // TODONEW subscribe to the vsc blockstream here
+    if(this.self.mode !== 'lite') {
+      NodeSchedule.scheduleJob('* * * * *', async () => {
+        await this.verifyMempool()
+      })
+
+      this.processVSCBlocks();
+    }
   }
 }

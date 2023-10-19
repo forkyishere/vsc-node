@@ -1,13 +1,20 @@
 import { Collection, Join } from "mongodb"
-import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, Deposit, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
+import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, DepositAction, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
 import { ChainStateLib } from "./ChainStateLib"
 import { CID } from "kubo-rpc-client/dist/src"
 // import { TransactionPoolService } from "@/services/transactionPool"
 import { networks } from "bitcoinjs-lib"
-import { BalanceController, TimeLock, WithdrawLock } from "./types/balanceData"
+import { BalanceController, Deposit, TimeLock, WithdrawLock } from "./types/balanceData"
 import { BlockRef } from "./types/blockData"
 import { Contract, CommitmentStatus, ContractCommitment } from "./types/contracts"
 import { TransactionDbStatus } from "./types/vscTransactions"
+import { DepositHelper } from "./depositHelper"
+import Pushable from 'it-pushable'
+import pushable from "it-pushable"
+import EventEmitter from 'events'
+import { fastStream, HiveClient, unwrapDagJws } from '../utils'
+import { DidAuth } from "@/types"
+
 
 export class ChainParserHIVE {
   private self: ChainStateLib
@@ -19,25 +26,7 @@ export class ChainParserHIVE {
     this.self = self
   }
 
-  private async countHeight(id: string) {
-    let block = (await this.self.ipfs.dag.get(CID.parse(id))).value
-    let height = 0
-
-    for (; ;) {
-      if (block.previous) {
-        block = (await this.self.ipfs.dag.get(block.previous)).value
-        height = height + 1
-      } else {
-        break
-      }
-    }
-
-    this.self.logger.debug('counted block height', height)
-    return height
-  }
-
   private async enableWitness(account: string, enableWitnessTx: EnableWitness) {
-    // TODONEW check if .did is actually input into the tx 
     await this.self.witnessDb.findOneAndUpdate({
       name: account
     }, {
@@ -212,11 +201,11 @@ export class ChainParserHIVE {
     }
   }
 
-  private async deposit(tx: any, depositTx: Deposit, txInfo: TxMetadata) {
+  private async deposit(tx: any, depositTx: DepositAction, txInfo: TxMetadata) {
     if (txInfo.to === networks[this.self.config.get('network.id')].multisigAccount) {
       const balanceController = { type: 'HIVE', authority: depositTx.to ?? txInfo.account, conditions: [] } as BalanceController
 
-      const transferedCurrency = TransactionPoolService.parseFormattedAmount(txInfo.amount);
+      const transferedCurrency = DepositHelper.parseFormattedAmount(txInfo.amount);
 
       const deposit = {
         from: txInfo.account,
@@ -311,7 +300,7 @@ export class ChainParserHIVE {
 
   private async withdrawFinalization(tx: any, withdrawFinalizationTx: WithdrawFinalization, txInfo: TxMetadata) {
     if (tx.from === networks[this.self.config.get('network.id')].multisigAccount) {
-      const transferedCurrency = TransactionPoolService.parseFormattedAmount(txInfo.amount);
+      const transferedCurrency = DepositHelper.parseFormattedAmount(txInfo.amount);
 
       const deposit = await this.self.balanceDb.findOne({ id: withdrawFinalizationTx.deposit_id })
 
@@ -365,7 +354,7 @@ export class ChainParserHIVE {
         this.leaveContract(<LeaveContract>json)
         break;
       case CoreTransactionTypes.deposit:
-        this.deposit(tx, <Deposit>json, txInfo)
+        this.deposit(tx, <DepositAction>json, txInfo)
         break;
       case CoreTransactionTypes.withdraw_finalization:
         this.withdrawFinalization(tx, <WithdrawFinalization>json, txInfo)
@@ -376,7 +365,315 @@ export class ChainParserHIVE {
     }
   }
 
+  // TODONEW, pla: still a lot of room for future refactors
+  async streamStart() {
+
+    const network_id = this.self.config.get('network.id')
+
+    this.self.logger.debug('current network_id', network_id)
+
+    let startBlock =
+      (
+        (await this.self.stateHeaders.findOne({
+          id: 'hive_head',
+        })) || ({} as any)
+      ).block_num || networks[network_id].genesisDay
+
+    if (this.self.config.get('debug.startBlock') !== undefined && this.self.config.get('debug.startBlock') !== null) {
+      startBlock = +this.self.config.get('debug.startBlock');
+    }
+
+    if (this.self.config.get('debug.startAtCurrentBlock')) {
+      const currentBlock = await HiveClient.blockchain.getCurrentBlock();
+      const block_height = parseInt(currentBlock.block_id.slice(0, 8), 16);
+      startBlock = block_height;
+    }
+
+    this.self.logger.debug('starting block stream at height', startBlock)
+    this.hiveStream = await fastStream.create({
+      //startBlock: networks[network_id].genesisDay,
+      startBlock: startBlock,
+      trackHead: true
+    })
+    void (async () => {
+      try {
+
+        for await (let [block_height, block] of this.hiveStream.streamOut) {
+          this.block_height = block_height;
+          for(let tx of block.transactions) {
+            try {
+              const headerOp = tx.operations[tx.operations.length - 1]
+              if(headerOp[0] === "custom_json") {
+                if (headerOp[1].required_posting_auths.includes(networks[this.self.config.get('network.id')].multisigAccount)) {
+                  try {
+                    const json = JSON.parse(headerOp[1].json)
+                    
+                    await this.self.transactionPool.findOneAndUpdate({
+                      id: json.ref_id
+                    }, {
+                      $set: {
+                        'output_actions.$.ref_id': tx.id
+                      }
+                    })
+                  } catch {
+    
+                  }
+                }
+              }
+              for(let [op_id, payload] of tx.operations) {
+                // if(payload.json_metadata && payload.memo_key) {
+                //   console.log(op_id, payload)
+                // }
+                
+                if(op_id === "account_update") {
+                  try {
+                    const json_metadata = JSON.parse(payload.json_metadata)
+                    if (json_metadata.vsc_node) {
+                      const { payload: proof, kid } = await this.self.identity.verifyJWS(json_metadata.vsc_node.signed_proof)
+                      const [did] = kid.split('#')
+                      console.log(proof)
+    
+    
+                      const witnessRecord = await this.self.witnessDb.findOne({
+                        account: payload.account
+                      }) || {} as any
+    
+                      const opts = {}
+                      if((witnessRecord.enabled === true && proof.witness.enabled === false) || typeof witnessRecord.disabled_at === 'undefined') {
+                        opts['disabled_at'] = block_height
+                        opts["disabled_reason"] = proof.witness.disabled_reason
+                      } else if((proof.witness.enabled === true && typeof witnessRecord.disabled_at === 'number') || typeof witnessRecord.enabled_at === 'undefined' ) {
+                        opts['enabled_at'] = block_height
+                        opts['disabled_at'] = null
+                        opts['disabled_reason'] = null
+                      }
+    
+                      if(json_metadata.did_auths) {
+                        const did_auths = json_metadata.did_auths as DidAuth
+    
+                        const currentDidAuths = (await this.self.didAuths.find({
+                          account: payload.account,
+                          did: {$in: Object.keys(did_auths)}
+                        }).toArray())
+    
+                        await this.self.didAuths.updateMany({
+                          _id: {
+                            $nin: currentDidAuths.map(e => e._id)
+                          }
+                        }, {
+                          $set: {
+                            valid_to: payload.account
+                          }
+                        })
+    
+                        const unindexdDids = did_auths
+                        for(let cta of currentDidAuths) {
+                          if(unindexdDids[cta.did] && unindexdDids[cta.did].ats === cta.authority_type) {
+                            delete unindexdDids[cta.did];
+                          }
+                        }
+    
+                        for(let [did, val] of Object.entries(unindexdDids)) {
+                          await this.self.didAuths.findOneAndUpdate({
+                            did: did,
+                            account: payload.account,
+                            // valid_to: {
+                            //   $ne: null
+                            // }
+                          }, {
+                            $set: {
+                              authority_type: val.ats,
+                              valid_from: block_height,
+                              valid_to: null
+                            }
+                          }, {
+                            upsert: true
+                          })
+                        }
+                      }
+    
+                      await this.self.witnessDb.findOneAndUpdate({
+                        account: payload.account,
+                      }, {
+                        $set: {
+                          did,
+                          peer_id: proof.ipfs_peer_id,
+                          signing_keys: proof.witness.signing_keys,
+                          enabled: proof.witness.enabled,
+                          last_signed: new Date(proof.ts),
+                          net_id: proof.net_id,
+                          git_commit: proof.git_commit,
+                          plugins: proof.witness.plugins || [],
+                          last_tx: tx.transaction_id,
+                          ...opts
+                        }
+                      }, {
+                        upsert: true
+                      })
+                    }
+                  } catch(ex) {
+                    console.log(ex)
+                  }
+                }
+                if (op_id === "custom_json") {
+                  if (payload.id === 'vsc-testnet-hive' || payload.id.startsWith('vsc.')) {
+                    const json = JSON.parse(payload.json)
+                    await this.processCoreTransaction(tx, json, {
+                      account: payload.required_posting_auths[0],
+                      block_height,
+                      timestamp: new Date(block.timestamp + "Z")
+                    })   
+                  }
+                } else if (op_id === "transfer") {
+                  // console.log(payload)
+                  // checking for to and from tx to be the multisig account, because all other transfers are not related to vsc
+                  if ([payload.to, payload.from].includes(networks[this.self.config.get('network.id')].multisigAccount)) {
+                    if (payload.memo) {
+                      const json = JSON.parse(payload.memo)
+                        await this.processCoreTransaction(tx, json, {
+                          account: payload.from, // from or payload.required_posting_auths[0]?
+                          block_height,
+                          timestamp: new Date(block.timestamp + "Z"),
+                          amount : payload.amount,
+                          to: payload.to,
+                          memo: payload.memo
+                        })
+                    } else {
+                      this.self.logger.warn('received transfer without memo, considering this a donation as we cant assign it to a specific network', payload)
+                    }     
+                  }         
+                }  
+              }           
+            } catch(ex) {
+              console.log(ex)
+            }
+          }
+  
+          if (this.self.config.get('debug.debugNodeAddresses')?.includes(this.self.config.get('identity.nodePublic'))) {
+            this.self.logger.debug(`current block_head height ${block_height}`)
+          }
+          await this.self.stateHeaders.findOneAndUpdate(
+            {
+              id: 'hive_head',
+            },
+            {
+              $set: {
+                block_num: block_height,
+              },
+            },
+            {
+              upsert: true,
+            },
+          )
+  
+          // TODONEW, think about if this is the right way of doing it
+          this.hiveBlockStream.emit('block', block_height, block)
+        }
+      } catch (ex) {
+        console.log(ex)
+      }
+    })()
+    this.hiveStream.startStream()
+  }
+
+  async streamStop() {
+
+  }
+
+   /**
+   * Verifies streaming is working correctly
+   */
+   async streamCheck() {
+    if (this.hiveStream.blockLag > 300 && typeof this.hiveStream.blockLag === 'number') {
+      // await this.self.nodeInfo.announceNode({
+      //   action: "disable_witness",
+      //   disable_reason: "sync_fail"
+      // })
+
+      await this.self.nodeInfo.setStatus({
+        id: "out_of_sync",
+        action: "disable_witness",
+        expires: moment().add('1', 'day').toDate()
+      })
+    }
+
+    if (this.syncedAt !== null) {
+      if (this.hiveStream.blockLag > 300) {
+        // await this.self.nodeInfo.announceNode({
+        //   action: "disable_witness",
+        //   disable_reason: "sync_fail"
+        // })
+
+        await this.self.nodeInfo.setStatus({
+          id: "out_of_sync",
+          action: "disable_witness",
+          expires: moment().add('1', 'day').toDate()
+        })
+
+
+        this.hiveStream.killStream()
+        this.streamStart()
+        this.syncedAt = null
+
+
+        return;
+      }
+      if (moment.isDate(this.hiveStream.lastBlockTs) && moment().subtract('1', 'minute').toDate().getTime() > this.hiveStream.lastBlockTs.getTime()) {
+        console.log('KILLING STREAM', this.hiveStream.blockLag)
+
+        this.hiveStream.killStream()
+        this.streamStart()
+
+        this.syncedAt = null
+
+        return
+      }
+    }
+    if (this.syncedAt === null && typeof this.hiveStream.blockLag === 'number' && this.hiveStream.blockLag < 5) {
+      console.log('[streamCheck] System synced!')
+      this.syncedAt = new Date();
+      await this.self.nodeInfo.nodeStatus.deleteMany({
+        id: "out_of_sync",
+      })
+    }
+  }
+
+  public vscBlockStream: Pushable.Pushable<any>;
+  // exposes the blockstream of hiveblocks after main processing of core transactions
+  public hiveBlockStream: EventEmitter = new EventEmitter()
+  private hiveStream: fastStream
+  private block_height: number
+
+  async streamStateNotifier() {
+    let blkNum;
+    setInterval(async() => {
+      const diff = (blkNum - this.hiveStream.blockLag) || 0
+      blkNum = this.hiveStream.blockLag
+      
+      this.self.logger.info(`current block lag ${this.hiveStream.blockLag} ${Math.round(diff / 15)}`)
+      const stateHeader = await this.self.stateHeaders.findOne({
+        id: 'hive_head'
+      })
+      if(stateHeader) {
+        this.self.logger.info(`current parse lag ${this.hiveStream.calcHeight - stateHeader.block_num}`, stateHeader)
+      }
+    }, 15 * 1000)
+  }
+  
   async start() {
-    // TODONEW subscribe to the hive blockstream here
+    this.vscBlockStream = Pushable()
+
+    if(this.self.mode !== 'lite') {
+
+      setInterval(() => {
+        this.streamCheck()
+      }, 5000)
+      const network_id = this.self.config.get('network.id')
+
+      // TODONEW, maybe figure out what can still be structured otherwise in terms of laying off logic to fastStreamHIVE, specifically mean code from streamstart/ streamStateNotifier
+      await this.streamStart()
+
+      await this.streamStateNotifier()
+    }
   }
 }
