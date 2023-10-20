@@ -8,7 +8,6 @@ import { DID } from "dids";
 import { TransactionDbRecord } from "./types/vscTransactions";
 import { BlockHeader } from "./types/blockData";
 import { Block } from "multiformats/dist/types/src/block";
-import winston from "winston";
 import { Contract, ContractCommitment } from "./types/contracts";
 import { DepositHelper } from "./depositHelper";
 import { Deposit } from "./types/balanceData";
@@ -25,13 +24,20 @@ export interface IChainStateLib {
     contractCommitmentDb: Collection<ContractCommitment>
     didAuths: Collection;
     contractDb: Collection<Contract>;
-    logger: winston.Logger;
+    logger: ILogger;
     registerModules(registerMethod: (name: string, regClass: object) => void): Promise<void>;
-    setConfig(config: ChainStateLibConfig): void;
+    setConfig(config: IChainStateLibConfig): void;
 }
 
-interface ChainStateLibConfig {
+interface IChainStateLibConfig {
     get(key: string): any;
+}
+
+interface ILogger {
+    warn(...args: any)
+    error(...args: any)
+    debug(...args: any)
+    info(...args: any)
 }
 
 export class ChainStateLib implements IChainStateLib {
@@ -47,12 +53,12 @@ export class ChainStateLib implements IChainStateLib {
     public contractDb: Collection<Contract>
     public ipfs: IPFSHTTPClient;
     public identity: DID;
-    public logger: winston.Logger
+    public logger: ILogger
     public depositHelper: DepositHelper;
-    public config: ChainStateLibConfig;
+    public config: IChainStateLibConfig;
     private db: Db;
 
-    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: winston.Logger) {
+    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger) {
         this.db = db;
         this.ipfs = ipfs;
         this.identity = identity;
@@ -70,9 +76,7 @@ export class ChainStateLib implements IChainStateLib {
         this.depositHelper = new DepositHelper(this.balanceDb);        
     }
 
-    // pla: how to pass config? use same config vsc nodes use!?
-
-    public setConfig(config: ChainStateLibConfig) {
+    public setConfig(config: IChainStateLibConfig) {
         this.config = config;
     }
 

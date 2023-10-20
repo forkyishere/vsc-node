@@ -12,7 +12,7 @@ import { DepositHelper } from "./depositHelper"
 import Pushable from 'it-pushable'
 import pushable from "it-pushable"
 import EventEmitter from 'events'
-import { fastStream, HiveClient, unwrapDagJws } from '../utils'
+import { FastStream, HiveClient, unwrapDagJws } from '../utils'
 import { DidAuth } from "@/types"
 
 
@@ -390,7 +390,7 @@ export class ChainParserHIVE {
     }
 
     this.self.logger.debug('starting block stream at height', startBlock)
-    this.hiveStream = await fastStream.create({
+    this.hiveStream = await FastStream.create({
       //startBlock: networks[network_id].genesisDay,
       startBlock: startBlock,
       trackHead: true
@@ -641,7 +641,7 @@ export class ChainParserHIVE {
   public vscBlockStream: Pushable.Pushable<any>;
   // exposes the blockstream of hiveblocks after main processing of core transactions
   public hiveBlockStream: EventEmitter = new EventEmitter()
-  private hiveStream: fastStream
+  private hiveStream: FastStream
   private block_height: number
 
   async streamStateNotifier() {
@@ -670,7 +670,7 @@ export class ChainParserHIVE {
       }, 5000)
       const network_id = this.self.config.get('network.id')
 
-      // TODONEW, maybe figure out what can still be structured otherwise in terms of laying off logic to fastStreamHIVE, specifically mean code from streamstart/ streamStateNotifier
+      // TODONEW, maybe figure out what can still be structured otherwise in terms of laying off logic to FastStreamHIVE, specifically mean code from streamstart/ streamStateNotifier
       await this.streamStart()
 
       await this.streamStateNotifier()

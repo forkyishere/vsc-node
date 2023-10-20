@@ -2,7 +2,7 @@ import { CID } from 'multiformats'
 import NodeSchedule from 'node-schedule'
 import dhive, { PrivateKey } from '@hiveio/dhive'
 import { CoreService } from '.'
-import { fastStream, HiveClient, unwrapDagJws } from '../utils'
+import { FastStream, HiveClient, unwrapDagJws } from '../utils'
 import 'dotenv/config'
 import { Collection } from 'mongodb'
 import networks from './networks'
@@ -43,7 +43,7 @@ export class ChainBridge {
   // block_height: number
   // syncedAt: Date | null
   // ipfsQueue: PQueue
-  // hiveStream: fastStream
+  // hiveStream: FastStream
 
   constructor(self: CoreService) {
     this.self = self

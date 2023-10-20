@@ -1,7 +1,7 @@
 import dhive, { PrivateKey } from '@hiveio/dhive'
 import { TransactionDbStatus, VSCTransactionTypes } from '../../chainstate-lib/types/vscTransactions'
 import { CoreTransactionTypes } from '../../chainstate-lib/types/coreTransactions'
-import { HiveClient } from '../../chainstate-lib/fastStreamHIVE'
+import { HiveClient } from '../../chainstate-lib/FastStreamHIVE'
 import { BlockRecord } from '../../chainstate-lib/types/blockData'
 
 export class BlockProducer {

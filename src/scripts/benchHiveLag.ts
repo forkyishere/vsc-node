@@ -1,4 +1,4 @@
-import { fastStream, sleep } from "../utils"
+import { FastStream, sleep } from "../utils"
 import { Client, PrivateKey } from "@hiveio/dhive"
 import 'dotenv/config'
 
@@ -28,7 +28,7 @@ void (async () => {
         let broadcastTime;
         const HiveClient = new Client(`https://${api}`)
         const bh = await HiveClient.blockchain.getCurrentBlockNum()
-        const stream = await fastStream.create({
+        const stream = await FastStream.create({
             startBlock: bh,
             trackHead: true
         })

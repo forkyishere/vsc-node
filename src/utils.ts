@@ -16,7 +16,7 @@ export const OFFCHAIN_HOST = process.env.OFFCHAIN_HOST || "https://us-01.infra.3
  * New block streaming utiziling batch requests (if available)
  * Improves stability and speed of block streaming
  */
-// export class fastStreamV2 {
+// export class FastStreamV2 {
 //   constructor() {
 
 //   }

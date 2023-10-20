@@ -13,7 +13,7 @@ const HIVE_API = process.env.HIVE_HOST || 'https://hive-api.web3telekom.xyz'
 
 export const HiveClient = new Client(process.env.HIVE_HOST || [HIVE_API, 'https://api.deathwing.me', 'https://anyx.io', 'https://api.openhive.network', 'https://rpc.ausbit.dev'])
 
-export class fastStream {
+export class FastStream {
 
     replayComplete: boolean
     blockMap: Record<string, any>
@@ -230,7 +230,7 @@ export class fastStream {
             streamOpts.endBlock = block_height;
         }
 
-        return new fastStream(queue, streamOpts)
+        return new FastStream(queue, streamOpts)
     }
 }
 
