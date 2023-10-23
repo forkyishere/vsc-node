@@ -11,7 +11,7 @@ import { Block } from "multiformats/dist/types/src/block";
 import { Contract, ContractCommitment } from "./types/contracts";
 import { DepositHelper } from "./depositHelper";
 import { Deposit } from "./types/balanceData";
-
+import EventEmitter from 'events';
 
 export interface IChainStateLib {
     chainParserVSC: ChainParserVSC;
@@ -27,17 +27,30 @@ export interface IChainStateLib {
     logger: ILogger;
     registerModules(registerMethod: (name: string, regClass: object) => void): Promise<void>;
     setConfig(config: IChainStateLibConfig): void;
+    events: EventEmitter;
 }
 
-interface IChainStateLibConfig {
+export interface IChainStateLibConfig {
     get(key: string): any;
 }
 
-interface ILogger {
+export interface ILogger {
     warn(...args: any)
     error(...args: any)
     debug(...args: any)
     info(...args: any)
+}
+
+// various events can be acted on, e.g.:
+// hive blocks
+// vsc blocks
+// stream check
+// various hive core transactions of type CoreTransactionTypes
+
+export enum ChainParserEvents {
+    StreamCheck = 'hive_stream_check',
+    HiveBlock = 'hive_block',
+    VscBlock = 'vsc_block',
 }
 
 export class ChainStateLib implements IChainStateLib {
@@ -56,9 +69,11 @@ export class ChainStateLib implements IChainStateLib {
     public logger: ILogger
     public depositHelper: DepositHelper;
     public config: IChainStateLibConfig;
+    public events: EventEmitter // pla: maybe switch out with something more efficient from rxjs     
     private db: Db;
 
     constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger) {
+        this.events = new EventEmitter()
         this.db = db;
         this.ipfs = ipfs;
         this.identity = identity;
@@ -73,7 +88,7 @@ export class ChainStateLib implements IChainStateLib {
         this.contractDb = this.db.collection('contracts');        
         this.chainParserHIVE = new ChainParserHIVE(this);
         this.chainParserVSC = new ChainParserVSC(this);
-        this.depositHelper = new DepositHelper(this.balanceDb);        
+        this.depositHelper = new DepositHelper(this.balanceDb);    
     }
 
     public setConfig(config: IChainStateLibConfig) {

@@ -480,7 +480,7 @@ export class MultisigCore {
 
         // }, 6000)
 
-        if(this.self.mode !== 'lite') {
+        if(this.self.config.get('node.storageType') !== 'lite') {
 
             setInterval(async() => {
                 if(this.self.witness.witnessSchedule && this.self.chainBridge.hiveStream.blockLag < 5 && this.self.chainBridge.syncedAt && this.self.chainBridge.hiveStream.blockLag) {

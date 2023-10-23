@@ -1,6 +1,6 @@
 import { Collection, Join } from "mongodb"
 import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, DepositAction, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
-import { ChainStateLib } from "./ChainStateLib"
+import { ChainParserEvents, ChainStateLib } from "./ChainStateLib"
 import { CID } from "kubo-rpc-client/dist/src"
 // import { TransactionPoolService } from "@/services/transactionPool"
 import { networks } from "bitcoinjs-lib"
@@ -15,12 +15,8 @@ import EventEmitter from 'events'
 import { FastStream, HiveClient, unwrapDagJws } from '../utils'
 import { DidAuth } from "@/types"
 
-
 export class ChainParserHIVE {
   private self: ChainStateLib
-  // pla: for each of the received transactions emit an event, so that other parts of the application can react to it
-  // e.g.: 
-  // withdrawRequestEmitted: EventEmitter<WithdrawRequest> = new EventEmitter();
 
   constructor(self: ChainStateLib) {
     this.self = self
@@ -98,7 +94,7 @@ export class ChainParserHIVE {
     }
   }
 
-  private async retrieveVSCBlock(txInfo: TxMetadata, announceBlockTx: AnnounceBlock) {
+  private async retrieveVSCBlock(tx: any, txInfo: TxMetadata, announceBlockTx: AnnounceBlock) {
     /**
       * TODO: Calculate expected witness account
       */
@@ -128,11 +124,13 @@ export class ChainParserHIVE {
     }
 
     // TODO, determine if the received block was proposed by the correct witness
-    this.events.emit('vsc_block', {
+    const block = {
       ...announceBlockTx,
       ...txInfo,
-      tx // TODONEW check if tx can be removed, think so, not used in processvsctx
-    })
+      tx
+    }
+    this.self.events.emit(ChainParserEvents.VscBlock, block)
+    this.vscBlockStream.push(block)
   }
 
   private async createContract(tx: any, createContractTx: CreateContract) {
@@ -328,6 +326,7 @@ export class ChainParserHIVE {
     }
     console.log(json)
 
+    let matched = true;
     switch (json.action) {
       case CoreTransactionTypes.enable_witness:
         this.enableWitness(txInfo.account, <EnableWitness>json);
@@ -342,7 +341,7 @@ export class ChainParserHIVE {
         this.changeWitnessState(txInfo.timestamp, <DissallowWitness>json, false)
         break;
       case CoreTransactionTypes.announce_block:
-        this.retrieveVSCBlock(txInfo, <AnnounceBlock>json)
+        this.retrieveVSCBlock(tx, txInfo, <AnnounceBlock>json)
         break;
       case CoreTransactionTypes.create_contract:
         this.createContract(tx, <CreateContract>json)
@@ -360,8 +359,12 @@ export class ChainParserHIVE {
         this.withdrawFinalization(tx, <WithdrawFinalization>json, txInfo)
         break;
       default:
+        matched = false
         this.self.logger.warn('not recognized tx type', json.action)
         break;
+    }
+    if (matched) {
+      this.self.events.emit(json.action, tx, json, txInfo)
     }
   }
 
@@ -567,7 +570,7 @@ export class ChainParserHIVE {
           )
   
           // TODONEW, think about if this is the right way of doing it
-          this.hiveBlockStream.emit('block', block_height, block)
+          this.self.events.emit(ChainParserEvents.HiveBlock, block_height, block)
         }
       } catch (ex) {
         console.log(ex)
@@ -584,18 +587,20 @@ export class ChainParserHIVE {
    * Verifies streaming is working correctly
    */
    async streamCheck() {
-    if (this.hiveStream.blockLag > 300 && typeof this.hiveStream.blockLag === 'number') {
-      // await this.self.nodeInfo.announceNode({
-      //   action: "disable_witness",
-      //   disable_reason: "sync_fail"
-      // })
+    this.self.events.emit(ChainParserEvents.StreamCheck)
+    // if (this.hiveStream.blockLag > 300 && typeof this.hiveStream.blockLag === 'number') {
+    //   // await this.self.nodeInfo.announceNode({
+    //   //   action: "disable_witness",
+    //   //   disable_reason: "sync_fail"
+    //   // })
 
-      await this.self.nodeInfo.setStatus({
-        id: "out_of_sync",
-        action: "disable_witness",
-        expires: moment().add('1', 'day').toDate()
-      })
-    }
+      
+    //   await this.self.nodeInfo.setStatus({
+    //     id: "out_of_sync",
+    //     action: "disable_witness",
+    //     expires: moment().add('1', 'day').toDate()
+    //   })
+    // }
 
     if (this.syncedAt !== null) {
       if (this.hiveStream.blockLag > 300) {
@@ -638,10 +643,8 @@ export class ChainParserHIVE {
     }
   }
 
-  public vscBlockStream: Pushable.Pushable<any>;
-  // exposes the blockstream of hiveblocks after main processing of core transactions
-  public hiveBlockStream: EventEmitter = new EventEmitter()
-  private hiveStream: FastStream
+  public vscBlockStream: Pushable.Pushable<any>; // pla: note only use this.self.events for extensions as vscBlockStream is reserved for chainParserVSC
+  public hiveStream: FastStream
   private block_height: number
 
   async streamStateNotifier() {
@@ -663,12 +666,11 @@ export class ChainParserHIVE {
   async start() {
     this.vscBlockStream = Pushable()
 
-    if(this.self.mode !== 'lite') {
+    if(this.self.config.get('node.storageType') !== 'lite') {
 
       setInterval(() => {
         this.streamCheck()
       }, 5000)
-      const network_id = this.self.config.get('network.id')
 
       // TODONEW, maybe figure out what can still be structured otherwise in terms of laying off logic to FastStreamHIVE, specifically mean code from streamstart/ streamStateNotifier
       await this.streamStart()

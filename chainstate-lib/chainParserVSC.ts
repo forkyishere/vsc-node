@@ -1,5 +1,5 @@
 import { CID } from "kubo-rpc-client/dist/src";
-import { ChainStateLib } from "./ChainStateLib";
+import { ChainParserEvents, ChainStateLib } from "./ChainStateLib";
 import { ContractInput, ContractOutput, TransactionConfirmed, TransactionDbStatus, TransactionDbType, VSCTransactionTypes } from "./types/vscTransactions";
 import { JwsHelper } from "./jwsHelper";
 import NodeSchedule from 'node-schedule'
@@ -231,7 +231,7 @@ export class ChainParserVSC {
   
 
   async start() {
-    if(this.self.mode !== 'lite') {
+    if(this.self.config.get('node.storageType') !== 'lite') {
       NodeSchedule.scheduleJob('* * * * *', async () => {
         await this.verifyMempool()
       })

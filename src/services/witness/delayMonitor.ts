@@ -84,7 +84,7 @@ export class DelayMonitor {
         this.delayMarks = this.self.db.collection('delay_marks')
         console.log('delay monitor is running!')
         
-        if(this.self.mode !== 'lite') {
+        if(this.self.config.get('node.storageType') !== 'lite') {
             NodeSchedule.scheduleJob('*/5 * * * *', this.runMark)
             NodeSchedule.scheduleJob('*/5 * * * *', async() => {
                 console.log('Delay notch', await this.gatherAverages())

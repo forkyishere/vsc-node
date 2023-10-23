@@ -25,10 +25,6 @@ import networks from "./networks";
 import { DiscordBot } from "./discordbot";
 import { ModuleContainer } from "../utils";
 import { ChainStateLib, IChainStateLib } from "../../chainstate-lib/ChainStateLib";
-interface CoreOptions {
-    dbSuffix?: string
-    mode?: 'lite'
-}
 
 export class CoreService extends ModuleContainer {
     ipfs: IPFSHTTPClient;
@@ -53,9 +49,8 @@ export class CoreService extends ModuleContainer {
     mode: string;
     modules: any[];
 
-    constructor(coreSettings?: LoggerConfig & CoreOptions) {
+    constructor() {
         super('core')
-        this.mode = coreSettings?.mode
 
         this.logger = getLogger(this.loggerSettings || {
             prefix: 'core',

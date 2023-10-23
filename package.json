@@ -81,7 +81,8 @@
     "lint:fix": "eslint --fix \"src/**/*.{ts,tsx}\"",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test:report": "sensible-browser ./coverage/lcov-report/index.html",
-    "test": "jest --coverage"
+    "test": "jest --coverage",
+    "start:standaloneparser": "nodemon --exec \"node --experimental-specifier-resolution=node --max-old-space-size=3072 --loader ts-node/esm\" standalone-vsc-parser/index.ts"
   },
   "author": "",
   "license": "ISC",

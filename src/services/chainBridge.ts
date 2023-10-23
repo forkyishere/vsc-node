@@ -23,6 +23,7 @@ import { loggers } from 'winston'
 import { YogaServer } from 'graphql-yoga'
 import { WithdrawFinalization } from '../../lib/types/coreTransactions'
 import { TransactionPoolService } from './transactionPool'
+import { ChainParserEvents } from '../../chainstate-lib/ChainStateLib'
 
 // pla: coordinates actions that require communication inbetween the 2 chains
 // e.g.: sending a withdraw finalization hive transaction triggered via a vsc transaction 
@@ -57,7 +58,7 @@ export class ChainBridge {
   // move to transactionpoolservice?
   async finalizeBalanceUpdate(depositId: string) {
     const memo: WithdrawFinalization = {
-      net_id: this.self.config.get('network.id'), 
+      net_id: this.self.config.get('network.id'),
       deposit_id: depositId,
       action: CoreTransactionTypes.withdraw_finalization
     } as WithdrawFinalization
@@ -75,7 +76,7 @@ export class ChainBridge {
 
         if (multisigBalanceController) {
           const withdrawLock = <WithdrawLock>multisigBalanceController.conditions.find(c => c.type === 'WITHDRAW')
-          
+
           if (withdrawLock && withdrawLock.expiration_block > block_height) {
             this.self.logger.info(`withdraw request for deposit ${withdraw.id} has been finalized`)
             // sign the balance update and publish via p2p multisig
@@ -92,28 +93,43 @@ export class ChainBridge {
   }
 
   async start() {
-    this.chainParserHIVE.hiveBlockStream.on('block', (block_height, block) => {
-      this.processBalanceUpdate(block_height, block);
-  })
-
-
-
-  //   this.stateHeaders = this.self.db.collection('state_headers')
-  //   this.blockHeaders = this.self.db.collection<BlockHeader>('block_headers')
-  //   this.witnessDb = this.self.db.collection('witnesses')
-  //   this.balanceDb = this.self.db.collection('balances')
-  //   this.didAuths = this.self.db.collection('did_auths')
-
-    
-
-  //   this.ipfsQueue = new (await import('p-queue')).default({ concurrency: 4 })
-  //   this.multiSigWithdrawBuffer = [] 
-
-  //   this.witness = new WitnessService(this.self)
-
-  //   this.streamOut = Pushable()
-    
-    
+    const parserHive = this.self.chainStateLib.chainParserHIVE
+    this.self.chainStateLib.events.on(ChainParserEvents.StreamCheck, async (peer) => {
+      if (parserHive.hiveStream.blockLag > 300 && typeof parserHive.hiveStream.blockLag === 'number') {
+        // await this.self.nodeInfo.announceNode({
+        //   action: "disable_witness",
+        //   disable_reason: "sync_fail"
+        // })
   
+        
+        await this.self.nodeInfo.setStatus({
+          id: "out_of_sync",
+          action: "disable_witness",
+          expires: moment().add('1', 'day').toDate()
+        })
+      }
+    })
+
+    this.self.chainStateLib.events.on(ChainParserEvents.HiveBlock, (block_height, block) => {
+      this.processBalanceUpdate(block_height, block);
+    })
+
+    //   this.stateHeaders = this.self.db.collection('state_headers')
+    //   this.blockHeaders = this.self.db.collection<BlockHeader>('block_headers')
+    //   this.witnessDb = this.self.db.collection('witnesses')
+    //   this.balanceDb = this.self.db.collection('balances')
+    //   this.didAuths = this.self.db.collection('did_auths')
+
+
+
+    //   this.ipfsQueue = new (await import('p-queue')).default({ concurrency: 4 })
+    //   this.multiSigWithdrawBuffer = [] 
+
+    //   this.witness = new WitnessService(this.self)
+
+    //   this.streamOut = Pushable()
+
+
+
   }
 }

@@ -1,2 +1,6 @@
-- the library should use/ be able to interpret the same config as a vsc node
+TODO
+- explainations for the config paths
+eg.: 'node.storageType' - defines the nodes storage type...
+'debug.startAtCurrentBlock' - does xyz
+its then up to the user to impl a config that houses those props 
 - TODONEW for things that need to be refactored but should wait for other stuff to be completed/ working first

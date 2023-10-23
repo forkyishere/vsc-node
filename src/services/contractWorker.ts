@@ -84,7 +84,7 @@ export class ContractWorker {
 
     async start() {
         this.network_id = this.self.config.get('network.id')
-        if(this.self.mode !== 'lite') {
+        if(this.self.config.get('node.storageType') !== 'lite') {
             setInterval(async() => {
                 if(this.self.witness.witnessSchedule && this.self.chainBridge.hiveStream.blockLag < 5 && this.self.chainBridge.syncedAt && this.self.chainBridge.hiveStream.blockLag) {
             

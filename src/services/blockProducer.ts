@@ -108,7 +108,7 @@ export class BlockProducer {
 
 
   async start() {
-    if (this.self.mode !== 'lite') {
+    if (this.self.config.get('node.storageType') !== 'lite') {
 
       if (process.env.HIVE_ACCOUNT_POSTING) {
         this.hiveKey = PrivateKey.fromString(process.env.HIVE_ACCOUNT_POSTING)
