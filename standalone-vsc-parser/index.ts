@@ -1,13 +1,12 @@
-import { mongo } from "mongoose"
-import { ChainStateLib, IChainStateLib, IChainStateLibConfig } from "../chainstate-lib/ChainStateLib"
-import { MongoClient } from "mongodb"
-import * as IPFSHTTP from "kubo-rpc-client";
-import { Ed25519Provider } from "key-did-provider-ed25519";
-import KeyResolver from 'key-did-resolver'
-import winston from "winston";
 import { DID } from "dids";
-import * as fs from 'fs';
 import _get from 'dlv';
+import * as fs from 'fs';
+import { Ed25519Provider } from "key-did-provider-ed25519";
+import KeyResolver from 'key-did-resolver';
+import * as IPFSHTTP from "kubo-rpc-client";
+import { MongoClient } from "mongodb";
+import winston from "winston";
+import { ChainStateLib, IChainStateLib, IChainStateLibConfig } from "../chainstate-lib/ChainStateLib";
 
 class Config implements IChainStateLibConfig {
     config: any;

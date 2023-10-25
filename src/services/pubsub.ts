@@ -1,28 +1,25 @@
-import NodeSchedule from 'node-schedule'
-import { CID, IPFSHTTPClient } from "kubo-rpc-client";
-import * as Block from 'multiformats/block'
-import * as codec from '@ipld/dag-cbor'
-import { sha256 as hasher, sha256 } from 'multiformats/hashes/sha2'
-import { encode, decode } from '@ipld/dag-cbor'
-import EventEmitter from 'events'
-import PeerId from 'peer-id'
-import KBucket from 'k-bucket'
-import Crypto from 'crypto'
-import { BloomFilter } from 'bloom-filters'
+import * as codec from '@ipld/dag-cbor';
+import { encode } from '@ipld/dag-cbor';
+import Crypto from 'crypto';
+import EventEmitter from 'events';
 import jsonpatch from 'fast-json-patch';
+import KBucket from 'k-bucket';
+import { IPFSHTTPClient } from "kubo-rpc-client";
 import { Collection, ObjectId, WithId } from "mongodb";
-import XorDistance from 'xor-distance'
+import * as Block from 'multiformats/block';
+import { sha256 as hasher } from 'multiformats/hashes/sha2';
+import NodeSchedule from 'node-schedule';
+import PeerId from 'peer-id';
 // import { xor as uint8ArrayXor } from 'uint8arrays/xor'
-import * as uint8ArrayXor from 'uint8arrays'
-import { CoreService } from './index.js';
+import { PrivateKey, cryptoUtils } from '@hiveio/dhive';
+import { DID } from 'dids';
 import pushable, { Pushable } from 'it-pushable';
+import { Ed25519Provider } from 'key-did-provider-ed25519';
+import KeyResolver from 'key-did-resolver';
 import winston from 'winston';
 import { getLogger, globalLogger } from '../logger.js';
-import { cryptoUtils, PrivateKey } from '@hiveio/dhive';
-import { Ed25519Provider } from 'key-did-provider-ed25519';
-import { DID } from 'dids';
-import KeyResolver from 'key-did-resolver'
 import { createJwsMultsign, verifyMultiJWS } from '../utils';
+import { CoreService } from './index.js';
 
 
 
@@ -591,7 +588,7 @@ export class P2PService {
                         peer_id: identity.id.toString(),
                         ts: ts.toISOString(),
                         anchor_status: {
-                            block_height: this.self.chainBridge.block_height
+                            block_height: this.self.chainStateLib.chainParserHIVE.block_height
                         },
                         signing_keys: {
                             posting: PrivateKey.fromString(this.self.config.get('identity.signing_keys.posting')).createPublic().toString(),

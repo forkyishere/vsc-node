@@ -1,9 +1,6 @@
-import {init} from './core'
-import {HiveClient} from '../utils'
-import { PrivateKey } from '@hiveio/dhive'
 import * as fs from 'fs';
-import * as vm from 'vm';
 import { TransactionPoolService } from '../services/transactionPool';
+import { init } from './core';
 
 void (async () => {
     

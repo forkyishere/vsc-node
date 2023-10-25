@@ -1,9 +1,10 @@
 import { PrivateKey, Transaction } from "@hiveio/dhive";
 import moment from 'moment'
 import hive from '@hiveio/hive-js'
-import { HiveClient, calcBlockInterval } from "../../utils";
 import { CoreService } from "..";
 import { WitnessService } from ".";
+import { calcBlockInterval } from "@/utils";
+import { HiveClient } from "../../../chainstate-lib/fastStreamHIVE";
 
 hive.api.setOptions({ url: 'https://api.hive.blog' })
 
@@ -13,15 +14,15 @@ export function createSafeDivision(options: {
     factorMax: number
     map: any[]
 }) {
-    const {map, factorMin, factorMax} = options;
+    const { map, factorMin, factorMax } = options;
 
     let cutArray;
-    if(map.length % 2 === 0) {
+    if (map.length % 2 === 0) {
         cutArray = map.slice(0, map.length - 1)
     } else {
         cutArray = map
     }
-    
+
     const factor = factorMin / factorMax
 
     return {
@@ -37,17 +38,17 @@ export function createSafeDivision(options: {
 }
 
 function convertDurationToHiveBlocks(dur: string, unit: moment.unitOfTime.DurationConstructor) {
-   const tim = moment.duration(dur, unit);
+    const tim = moment.duration(dur, unit);
 
-   return tim.asSeconds() / 3;
+    return tim.asSeconds() / 3;
 }
 
 export class MultisigCore {
     witness: WitnessService;
     self: CoreService;
     multisigOptions: {
-        rotationIntervalHive?: number; rotationInterval: string; 
-};
+        rotationIntervalHive?: number; rotationInterval: string;
+    };
     private _rotationRunning: boolean;
     lastRotateBlock: number | null;
     sentTest: boolean;
@@ -75,7 +76,7 @@ export class MultisigCore {
             expiration: moment().add('60', 'seconds').toDate().toISOString().slice(0, -5),
             operations: [
                 ['transfer', {
-                    
+
                 }],
                 [
                     'custom_json',
@@ -91,11 +92,11 @@ export class MultisigCore {
             extensions: []
         }
         // HiveClient.broadcast.sendOperations([['transfer', {
-            
+
         // }]], PrivateKey.fromString(this.self.config.get('identity.signing_keys.active')))
         console.log('broadcast transaction in progress', transaction)
     }
-    
+
     /**
      * Takes a look at output data 
      */
@@ -107,54 +108,54 @@ export class MultisigCore {
         const consensusRound = await this.self.witness.calculateConsensusRound()
         const candidateNodes = await this.witness.witnessDb.find({
             $or: [
-              {
-                disabled_at: {
-                  $gt: consensusRound.pastRoundHash,
+                {
+                    disabled_at: {
+                        $gt: consensusRound.pastRoundHash,
+                    },
                 },
-              },
-              {
-                disabled_at: {
-                  $exists: false,
+                {
+                    disabled_at: {
+                        $exists: false,
+                    },
                 },
-              },
-              {
-                disabled_at: {
-                  $eq: null
+                {
+                    disabled_at: {
+                        $eq: null
+                    },
                 },
-              },
             ],
             trusted: true,
             net_id: this.self.config.get('network.id'),
             enabled_at: {
-              $lt: consensusRound.pastRoundHash,
+                $lt: consensusRound.pastRoundHash,
             },
             last_signed: {
-              $gt: moment().subtract('3', 'day').toDate()
+                $gt: moment().subtract('3', 'day').toDate()
             },
             plugins: 'multisig'
-          }, {
+        }, {
             sort: {
-              account: -1
+                account: -1
             }
-          }).toArray()
+        }).toArray()
 
         const ownerKeys = candidateNodes.map(e => e.signing_keys.owner)
         const activeKeys = candidateNodes.map(e => e.signing_keys.active)
         const postingKeys = candidateNodes.map(e => e.signing_keys.posting)
-        
+
 
         // console.log({
         //     ownerKeys,
         //     postingKeys,
         //     activeKeys
         // })
-        
-        const multisigConf = createSafeDivision({factorMax: 11, factorMin: 6, map: candidateNodes})
+
+        const multisigConf = createSafeDivision({ factorMax: 11, factorMin: 6, map: candidateNodes })
         // console.log(multisigConf)
 
         const bh = await HiveClient.blockchain.getCurrentBlock();
         const [multisigAccount] = await HiveClient.database.getAccounts([process.env.MULTISIG_ACCOUNT])
-       
+
         const transaction: Transaction = {
             ref_block_num: parseInt(bh.block_id.slice(0, 8), 16) & 0xffff,
             ref_block_prefix: Buffer.from(bh.block_id, 'hex').readUInt32LE(4),
@@ -168,7 +169,7 @@ export class MultisigCore {
                         // key_auths: [...multisigAccount.owner.key_auths, ...(await candidateNodes).map(e => {
                         //     return [(e as any).signing_keys.owner,1]
                         // })],
-                        
+
                         weight_threshold: multisigConf.threshold
                     },
                     active: {
@@ -177,7 +178,7 @@ export class MultisigCore {
                         // key_auths: [...multisigAccount.owner.key_auths, ...(await candidateNodes).map(e => {
                         //     return [(e as any).signing_keys.owner,1]
                         // })],
-                        
+
                         weight_threshold: multisigConf.threshold
                     },
                     posting: {
@@ -186,7 +187,7 @@ export class MultisigCore {
                         // key_auths: [...multisigAccount.owner.key_auths, ...(await candidateNodes).map(e => {
                         //     return [(e as any).signing_keys.owner,1]
                         // })],
-                        
+
                         weight_threshold: multisigConf.threshold
                     },
                     memo_key: multisigAccount.memo_key,
@@ -196,8 +197,8 @@ export class MultisigCore {
             extensions: []
         }
         // console.log(JSON.stringify(transaction, null, 2))
-        
-        
+
+
         // hive.broadcast.send(transactionTest, [this.self.config.get('identity.signing_keys.owner')], (err, result) => {
         //     console.log(err, result);
         //   })
@@ -215,7 +216,7 @@ export class MultisigCore {
         // // const signedTx = await HiveClient.broadcast.sign(transaction, PrivateKey.fromString(this.self.config.get('identity.signing_keys.owner')))
         // // console.log(JSON.stringify(signedTx, null, 2))
 
-        const {drain} = await this.self.p2pService.multicastChannel.call('multisig.request_rotate', {
+        const { drain } = await this.self.p2pService.multicastChannel.call('multisig.request_rotate', {
             payload: {
                 transaction,
                 authority_type: 'owner'
@@ -227,17 +228,17 @@ export class MultisigCore {
 
         console.log(multisigAccount.owner)
         let signatures = [...what.signatures]
-        for await(let {payload} of drain) {
-            console.log('sigData',signatures.length, payload)
-            if(multisigAccount.owner.weight_threshold <= signatures.length) {
+        for await (let { payload } of drain) {
+            console.log('sigData', signatures.length, payload)
+            if (multisigAccount.owner.weight_threshold <= signatures.length) {
                 break;
             }
             signatures.push(payload.signature)
         }
-        
+
 
         what.signatures = signatures
-        
+
         // // console.log('signature end', signatures, PrivateKey.from(this.self.config.get('identity.signing_keys.owner')).createPublic().toString())
         // // signedTx.signatures.push(...signatures)
         // // console.log(signedTx.signatures)
@@ -247,7 +248,7 @@ export class MultisigCore {
         // hive.api.broadcastTransactionSynchronous(signedTx, function(err, result) {
         //     console.log(err, result);
         //   });
-          
+
     }
 
     async custom_json() {
@@ -259,9 +260,9 @@ export class MultisigCore {
             expiration: moment().add('60', 'seconds').toDate().toISOString().slice(0, -5),
             operations: [
                 ['custom_json', {
-                    required_auths:	[],
-                    required_posting_auths:[process.env.MULTISIG_ACCOUNT],
-                
+                    required_auths: [],
+                    required_posting_auths: [process.env.MULTISIG_ACCOUNT],
+
                     id: "test-test-test-test",
                     json: '{"test": "Signed with multisig"}'
                 }]
@@ -271,7 +272,7 @@ export class MultisigCore {
 
         const signedTx = await HiveClient.broadcast.sign(transaction, PrivateKey.fromString(this.self.config.get('identity.signing_keys.posting')))
 
-        const {drain} = await this.self.p2pService.multicastChannel.call('multisig.sign_posting', {
+        const { drain } = await this.self.p2pService.multicastChannel.call('multisig.sign_posting', {
             payload: {
                 transaction
             },
@@ -279,9 +280,9 @@ export class MultisigCore {
         })
 
         let signatures = [...signedTx.signatures]
-        for await(let {payload} of drain) {
+        for await (let { payload } of drain) {
             // console.log('sigData', payload)
-            if(multisigAccount.owner.weight_threshold <= signatures.length) {
+            if (multisigAccount.owner.weight_threshold <= signatures.length) {
                 break;
             }
             signatures.push(payload.signature)
@@ -294,24 +295,24 @@ export class MultisigCore {
 
     async processOutputs() {
         const outputsWithActions = await this.self.transactionPool.transactionPool.find({
-            output_actions: {$ne: null},
-            'output_actions.tx_id': {$exists: false},
-            'headers.contract_id': {$exists: true}
+            output_actions: { $ne: null },
+            'output_actions.tx_id': { $exists: false },
+            'headers.contract_id': { $exists: true }
         }).toArray()
         console.log('outputsWithActions', outputsWithActions)
-       
+
         let outputActions = []
-        for(let out of outputsWithActions) {
+        for (let out of outputsWithActions) {
             outputActions.push(...out.output_actions.map(e => ({
                 ...e,
                 contract_id: out.headers.contract_id,
                 output_id: out.id
             })))
         }
-        for(let action of outputActions) {
+        for (let action of outputActions) {
             console.log(action)
             let tx;
-            if(action.tx[0] === 'custom_json') {
+            if (action.tx[0] === 'custom_json') {
                 tx = ['custom_json', {
                     required_posting_auths: [process.env.MULTISIG_ACCOUNT],
                     required_auths: [],
@@ -322,7 +323,7 @@ export class MultisigCore {
                         "vsc_json": typeof action.tx[1].json === 'string' ? JSON.parse(action.tx[1].json) : action.tx[1].json
                     })
                 }]
-            } else if(action[0] === 'transfer') {
+            } else if (action[0] === 'transfer') {
                 tx = action.tx
             } else {
                 continue;
@@ -355,7 +356,7 @@ export class MultisigCore {
 
             const signedTx = await HiveClient.broadcast.sign(transaction, PrivateKey.fromString(this.self.config.get('identity.signing_keys.posting')))
 
-            const {drain} = await this.self.p2pService.multicastChannel.call('multisig.sign_posting', {
+            const { drain } = await this.self.p2pService.multicastChannel.call('multisig.sign_posting', {
                 payload: {
                     transaction
                 },
@@ -364,9 +365,9 @@ export class MultisigCore {
             })
 
             let signatures = [...signedTx.signatures]
-            for await(let {payload} of drain) {
+            for await (let { payload } of drain) {
                 // console.log('sigData', payload)
-                if(multisigAccount.owner.weight_threshold <= signatures.length) {
+                if (multisigAccount.owner.weight_threshold <= signatures.length) {
                     break;
                 }
                 signatures.push(payload.signature)
@@ -375,12 +376,12 @@ export class MultisigCore {
 
             console.log(signedTx)
 
-            if(!this.sentTest) {
+            if (!this.sentTest) {
                 const recipt = await HiveClient.broadcast.send(signedTx)
                 console.log(recipt)
                 await this.self.transactionPool.transactionPool.findOneAndUpdate({
                     id: action.output_id
-                },{
+                }, {
                     $set: {
                         [`output_actions.${outputActions.indexOf(action)}.tx_id`]: recipt.id
                     }
@@ -389,7 +390,7 @@ export class MultisigCore {
 
             this.sentTest = true;
 
-            
+
         }
     }
 
@@ -398,7 +399,7 @@ export class MultisigCore {
     }
 
     tagRunner(key) {
-        if(!this.runnerTags[key]) {
+        if (!this.runnerTags[key]) {
             this.runnerTags[key] = {
                 t: true
             }
@@ -408,7 +409,7 @@ export class MultisigCore {
     }
 
     tagValue(key, value) {
-        if(!this.runnerTags[key]) {
+        if (!this.runnerTags[key]) {
             this.runnerTags[key] = {
                 v: value
             }
@@ -418,7 +419,7 @@ export class MultisigCore {
     }
 
     untagRunner(key) {
-        if(!this.runnerTags[key]) {
+        if (!this.runnerTags[key]) {
             this.runnerTags[key] = {
                 t: false
             }
@@ -426,52 +427,56 @@ export class MultisigCore {
             this.runnerTags[key].t = false
         }
     }
-        
-    async start() {
-        
-        this.self.p2pService.multicastChannel.register('multisig.request_rotate', async({
-            message,
-            drain,
-            from
-        }) => {
-            const peerInfo = await this.self.p2pService.peerDb.findOne({
-                peer_id: from.toString()
-            })
 
-            if((peerInfo as any)?.anti_hack_trusted === true) { 
-                const rawTransaction = message.transaction
-    
-                const key = PrivateKey.fromString(this.self.config.get('identity.signing_keys.owner'))
-                const signedTransaction = await HiveClient.broadcast.sign(rawTransaction, key)
-                drain.push({
-                    signature: signedTransaction.signatures[0]
-                })
-                drain.end()
-            } else {
-                drain.end()
-            }
-        })
-        this.self.p2pService.multicastChannel.register('multisig.sign_posting', async({
+    async start() {
+
+        this.self.p2pService.multicastChannel.register('multisig.request_rotate', ({
             message,
             drain,
             from
         }) => {
-            const peerInfo = await this.self.p2pService.peerDb.findOne({
-                peer_id: from.toString()
-            })
-            const rawTransaction = message.transaction
-            
-            if((peerInfo as any)?.anti_hack_trusted === true) {
-                const key = PrivateKey.fromString(this.self.config.get('identity.signing_keys.posting'))
-                const signedTransaction = await HiveClient.broadcast.sign(rawTransaction, key)
-                drain.push({
-                    signature: signedTransaction.signatures[0]
+            (async () => {
+                const peerInfo = await this.self.p2pService.peerDb.findOne({
+                    peer_id: from.toString()
                 })
-                drain.end()
-            } else {
-                //Do nothing
-                drain.end()
-            }
+
+                if ((peerInfo as any)?.anti_hack_trusted === true) {
+                    const rawTransaction = message.transaction
+
+                    const key = PrivateKey.fromString(this.self.config.get('identity.signing_keys.owner'))
+                    const signedTransaction = await HiveClient.broadcast.sign(rawTransaction, key)
+                    drain.push({
+                        signature: signedTransaction.signatures[0]
+                    })
+                    drain.end()
+                } else {
+                    drain.end()
+                }
+            })();
+        })
+        this.self.p2pService.multicastChannel.register('multisig.sign_posting', ({
+            message,
+            drain,
+            from
+        }) => {
+            (async () => {
+                const peerInfo = await this.self.p2pService.peerDb.findOne({
+                    peer_id: from.toString()
+                })
+                const rawTransaction = message.transaction
+
+                if ((peerInfo as any)?.anti_hack_trusted === true) {
+                    const key = PrivateKey.fromString(this.self.config.get('identity.signing_keys.posting'))
+                    const signedTransaction = await HiveClient.broadcast.sign(rawTransaction, key)
+                    drain.push({
+                        signature: signedTransaction.signatures[0]
+                    })
+                    drain.end()
+                } else {
+                    //Do nothing
+                    drain.end()
+                }
+            })();
         })
         // this.testSuite()
 
@@ -480,75 +485,76 @@ export class MultisigCore {
 
         // }, 6000)
 
-        if(this.self.config.get('node.storageType') !== 'lite') {
+        if (this.self.config.get('node.storageType') !== 'lite') {
+            setInterval(() => {
+                (async () => {
+                    if (this.self.witness.witnessSchedule && this.self.chainStateLib.chainParserHIVE.hiveStream.blockLag < 5 && this.self.chainStateLib.chainParserHIVE.syncedAt && this.self.chainStateLib.chainParserHIVE.hiveStream.blockLag) {
+                        // console.log('Contract worker', this.self.witness.witnessSchedule, this.self.chainStateLib.chainParserHIVE.hiveStream.blockLag, this.self.chainBridge.syncedAt)
 
-            setInterval(async() => {
-                if(this.self.witness.witnessSchedule && this.self.chainBridge.hiveStream.blockLag < 5 && this.self.chainBridge.syncedAt && this.self.chainBridge.hiveStream.blockLag) {
-                    // console.log('Contract worker', this.self.witness.witnessSchedule, this.self.chainBridge.hiveStream.blockLag, this.self.chainBridge.syncedAt)
-            
-                    const nodeInfo = await this.self.chainBridge.witnessDb.findOne({
-                      did: this.self.identity.id,
-                    })
-                    if (nodeInfo) {
-                        //   const scheduleSlot = this.self.witness.witnessSchedule?.find((e) => {
-                        //     return e.bn === offsetBlock
-                        //   })
-    
-                        const scheduleSlot = this.self.witness.witnessSchedule.find(e => e.in_past !== true)
-                        
-                        
-                        const calc = calcBlockInterval({
-                            currentBlock: this.self.chainBridge.hiveStream.lastBlock, 
-                            intervalLength: this.multisigOptions.rotationIntervalHive,
-                            marginLength: 5
+                        const nodeInfo = await this.self.chainStateLib.witnessDb.findOne({
+                            did: this.self.identity.id,
                         })
-                        
-                        // console.log(calc)
-                        const scheduleSlotActual = this.self.witness.witnessSchedule.find(e => e.bn === calc.last)
-    
-                        // console.log('scheduleSlotActual', scheduleSlotActual)
-    
-                        // console.log(this.self.chainBridge.hiveStream.lastBlock % this.multisigOptions.rotationIntervalHive, this.self.chainBridge.hiveStream.lastBlock)
-                        if (nodeInfo.enabled && nodeInfo.trusted && calc.isMarginActive) {
-                            if (!this._rotationRunning && calc.last !== this.lastRotateBlock) {
-                                console.log('time to rotate mulitisig keys')
-                                this._rotationRunning = true;
+                        if (nodeInfo) {
+                            //   const scheduleSlot = this.self.witness.witnessSchedule?.find((e) => {
+                            //     return e.bn === offsetBlock
+                            //   })
+
+                            const scheduleSlot = this.self.witness.witnessSchedule.find(e => e.in_past !== true)
+
+
+                            const calc = calcBlockInterval({
+                                currentBlock: this.self.chainStateLib.chainParserHIVE.hiveStream.lastBlock,
+                                intervalLength: this.multisigOptions.rotationIntervalHive,
+                                marginLength: 5
+                            })
+
+                            // console.log(calc)
+                            const scheduleSlotActual = this.self.witness.witnessSchedule.find(e => e.bn === calc.last)
+
+                            // console.log('scheduleSlotActual', scheduleSlotActual)
+
+                            // console.log(this.self.chainStateLib.chainParserHIVE.hiveStream.lastBlock % this.multisigOptions.rotationIntervalHive, this.self.chainStateLib.chainParserHIVE.hiveStream.lastBlock)
+                            if (nodeInfo.enabled && nodeInfo.trusted && calc.isMarginActive) {
+                                if (!this._rotationRunning && calc.last !== this.lastRotateBlock) {
+                                    console.log('time to rotate mulitisig keys')
+                                    this._rotationRunning = true;
+                                    try {
+                                        await this.triggerKeyrotation()
+                                    } catch (ex) {
+                                        console.log(ex)
+                                    }
+                                    this.lastRotateBlock = calc.last
+                                    this._rotationRunning = false
+                                }
+                            }
+                            const procOutCalc = calcBlockInterval({
+                                currentBlock: this.self.chainStateLib.chainParserHIVE.hiveStream.lastBlock,
+                                intervalLength: 20,
+                                marginLength: 5
+                            })
+                            // console.log(this.runnerTags, this.isTagged('process_outputs'), procOutCalc.last,  this.runnerTags['process_outputs']?.v)
+                            // console.log(nodeInfo, this.self.witness.witnessSchedule.find(e => e.bn === procOutCalc.last), this.self.witness.witnessSchedule.find(e => e.bn === procOutCalc.last).account === nodeInfo.account)
+                            if (
+                                scheduleSlot &&
+                                procOutCalc.isMarginActive &&
+                                !this.isTagged('process_outputs') &&
+                                procOutCalc.last !== this.runnerTags['process_outputs']?.v &&
+                                this.self.witness.witnessSchedule.find((e) => e.bn === procOutCalc.last)
+                                    .account === nodeInfo.account
+                            ) {
+                                // console.log('Processed on chain interactions', scheduleSlot)
                                 try {
-                                    await this.triggerKeyrotation()
-                                } catch(ex) {
+                                    this.tagRunner('process_outputs')
+                                    this.tagValue('process_outputs', procOutCalc.last)
+                                    await this.processOutputs()
+                                    this.untagRunner('process_outputs')
+                                } catch (ex) {
                                     console.log(ex)
                                 }
-                                this.lastRotateBlock = calc.last
-                                this._rotationRunning = false
                             }
                         }
-                        const procOutCalc = calcBlockInterval({
-                            currentBlock: this.self.chainBridge.hiveStream.lastBlock, 
-                            intervalLength: 20,
-                            marginLength: 5
-                        })
-                        // console.log(this.runnerTags, this.isTagged('process_outputs'), procOutCalc.last,  this.runnerTags['process_outputs']?.v)
-                        // console.log(nodeInfo, this.self.witness.witnessSchedule.find(e => e.bn === procOutCalc.last), this.self.witness.witnessSchedule.find(e => e.bn === procOutCalc.last).account === nodeInfo.account)
-                        if (
-                          scheduleSlot &&
-                          procOutCalc.isMarginActive &&
-                          !this.isTagged('process_outputs') &&
-                          procOutCalc.last !== this.runnerTags['process_outputs']?.v &&
-                          this.self.witness.witnessSchedule.find((e) => e.bn === procOutCalc.last)
-                            .account === nodeInfo.account 
-                        ) {
-                          // console.log('Processed on chain interactions', scheduleSlot)
-                          try {
-                            this.tagRunner('process_outputs')
-                            this.tagValue('process_outputs', procOutCalc.last)
-                            await this.processOutputs()
-                            this.untagRunner('process_outputs')
-                          } catch (ex) {
-                            console.log(ex)
-                          }
-                        }
                     }
-                }
+                })();
             }, 1.5 * 1000)
         }
     }

@@ -228,8 +228,6 @@ export class ChainParserVSC {
     }
   }
 
-  
-
   async start() {
     if(this.self.config.get('node.storageType') !== 'lite') {
       NodeSchedule.scheduleJob('* * * * *', async () => {

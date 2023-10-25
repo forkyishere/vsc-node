@@ -2,11 +2,11 @@ import 'dotenv/config'
 import { Ed25519Provider } from 'key-did-provider-ed25519'
 import { DID } from 'dids'
 import KeyResolver from 'key-did-resolver'
-import { HiveClient } from '../utils'
 import { PrivateKey } from '@hiveio/dhive'
 import { CoreService } from '../services'
 import { init } from './core'
 import { DissallowWitness } from '../../chainstate-lib/types/coreTransactions'
+import { HiveClient } from '../../chainstate-lib/fastStreamHIVE'
 
 
 void (async () => {

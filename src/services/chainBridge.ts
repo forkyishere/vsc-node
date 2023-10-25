@@ -1,57 +1,21 @@
-import { CID } from 'multiformats'
-import NodeSchedule from 'node-schedule'
-import dhive, { PrivateKey } from '@hiveio/dhive'
-import { CoreService } from '.'
-import { FastStream, HiveClient, unwrapDagJws } from '../utils'
 import 'dotenv/config'
-import { Collection } from 'mongodb'
+import moment from 'moment'
+import { CoreService } from '.'
+import { ChainParserEvents } from '../../chainstate-lib/ChainStateLib'
 import networks from './networks'
 import { WitnessService } from './witness'
-import type PQueue from 'p-queue'
-import { VMScript } from 'vm2'
-import * as vm from 'vm';
-import Pushable from 'it-pushable'
-import { CommitmentStatus, Contract, ContractCommitment } from '../../chainstate-lib/types/contracts'
-import EventEmitter from 'events'
-import { DagJWS, DagJWSResult, DID } from 'dids'
-import { BalanceController, BlockHeader, BlockRecord, BlockRef, Deposit, DepositDrain, DidAuth, DidAuthRecord, TimeLock, TransactionConfirmed, TransactionDbStatus, TransactionDbType, WithdrawLock } from '../types'
-import { VSCTransactionTypes, ContractInput, ContractOutput } from '../../lib/types/vscTransactions'
-import { CoreTransactionTypes } from '../../lib/types/coreTransactions'
-import moment from 'moment'
-import { PayloadTooLargeException } from '@nestjs/common'
-import { loggers } from 'winston'
-import { YogaServer } from 'graphql-yoga'
-import { WithdrawFinalization } from '../../lib/types/coreTransactions'
-import { TransactionPoolService } from './transactionPool'
-import { ChainParserEvents } from '../../chainstate-lib/ChainStateLib'
+import { Deposit, WithdrawLock } from '../../chainstate-lib/types/balanceData'
+import { WithdrawFinalization, CoreTransactionTypes } from '../../chainstate-lib/types/coreTransactions'
 
 // pla: coordinates actions that require communication inbetween the 2 chains
 // e.g.: sending a withdraw finalization hive transaction triggered via a vsc transaction 
 export class ChainBridge {
   self: CoreService
-  // blockHeaders: Collection<BlockHeader>
-  // stateHeaders: Collection
-  // contracts: Collection
-  // witness: WitnessService
-  // witnessDb: Collection
-  // balanceDb: Collection<Deposit>
-  // didAuths: Collection<DidAuthRecord>
-  // events: EventEmitter
-  // streamOut: Pushable.Pushable<any>
-  // multiSigWithdrawBuffer: Array<Deposit>
-
-  // blockQueue: PQueue
-  // block_height: number
-  // syncedAt: Date | null
-  // ipfsQueue: PQueue
-  // hiveStream: FastStream
+  witness: WitnessService
+  multiSigWithdrawBuffer: Array<Deposit>
 
   constructor(self: CoreService) {
     this.self = self
-
-    // this.events = new EventEmitter()
-
-    // this.syncedAt = null
   }
 
   // pla: the multisig consensus has been reached and a selected node now transfers the funds
@@ -66,7 +30,7 @@ export class ChainBridge {
     //TransactionPoolService.createCoreTransferTransaction... (amount = depositId.active_balance)
   }
 
-  async processBalanceUpdate(block_height, block) {
+  async processBalanceUpdate(block_height: number) {
     for (let i = this.multiSigWithdrawBuffer.length - 1; i >= 0; i--) {
       const withdraw = this.multiSigWithdrawBuffer[i];
       // ensure that there is a safe distance between the receival of the withdraw request and the current block
@@ -93,43 +57,46 @@ export class ChainBridge {
   }
 
   async start() {
+    this.multiSigWithdrawBuffer = []
     const parserHive = this.self.chainStateLib.chainParserHIVE
-    this.self.chainStateLib.events.on(ChainParserEvents.StreamCheck, async (peer) => {
-      if (parserHive.hiveStream.blockLag > 300 && typeof parserHive.hiveStream.blockLag === 'number') {
-        // await this.self.nodeInfo.announceNode({
-        //   action: "disable_witness",
-        //   disable_reason: "sync_fail"
-        // })
-  
-        
+    this.self.chainStateLib.events.on(ChainParserEvents.StreamCheck, () => {
+      (async () => {
+        if (parserHive.hiveStream.blockLag > 300 && typeof parserHive.hiveStream.blockLag === 'number') {
+          await this.self.nodeInfo.setStatus({
+            id: "out_of_sync",
+            action: "disable_witness",
+            expires: moment().add('1', 'day').toDate()
+          })
+        }
+      })();
+    })
+
+    this.self.chainStateLib.events.on(ChainParserEvents.StreamSynced, () => {
+      (async () => {
+        await this.self.nodeInfo.nodeStatus.deleteMany({
+          id: "out_of_sync",
+        })
+      })();
+    })
+
+    this.self.chainStateLib.events.on(ChainParserEvents.StreamOutOfSync, () => {
+      (async () => {
         await this.self.nodeInfo.setStatus({
           id: "out_of_sync",
           action: "disable_witness",
           expires: moment().add('1', 'day').toDate()
         })
-      }
+      })();
     })
 
     this.self.chainStateLib.events.on(ChainParserEvents.HiveBlock, (block_height, block) => {
-      this.processBalanceUpdate(block_height, block);
+      this.processBalanceUpdate(block_height);
     })
 
-    //   this.stateHeaders = this.self.db.collection('state_headers')
-    //   this.blockHeaders = this.self.db.collection<BlockHeader>('block_headers')
-    //   this.witnessDb = this.self.db.collection('witnesses')
-    //   this.balanceDb = this.self.db.collection('balances')
-    //   this.didAuths = this.self.db.collection('did_auths')
+    this.self.chainStateLib.events.on(ChainParserEvents.VerifiedWithdrawRequest, (deposit) => {
+      this.multiSigWithdrawBuffer.push(deposit);
+    })
 
-
-
-    //   this.ipfsQueue = new (await import('p-queue')).default({ concurrency: 4 })
-    //   this.multiSigWithdrawBuffer = [] 
-
-    //   this.witness = new WitnessService(this.self)
-
-    //   this.streamOut = Pushable()
-
-
-
+    this.witness = new WitnessService(this.self)
   }
 }

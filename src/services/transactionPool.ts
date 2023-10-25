@@ -1,27 +1,18 @@
-import { Collection, ObjectId, WithId } from 'mongodb'
-import NodeSchedule from 'node-schedule'
-import { encode, decode } from '@ipld/dag-cbor'
-import { CID } from 'multiformats'
-import * as Block from 'multiformats/block'
-import * as codec from '@ipld/dag-cbor'
-import { sha256 as hasher } from 'multiformats/hashes/sha2'
-import BloomFilters from 'bloom-filters'
-import { CoreService } from '.'
-import { BlockHeader, TransactionContainer, TransactionDbRecord, TransactionDbStatus, TransactionDbType, TransactionRaw } from '../types'
-import { VM, NodeVM, VMScript } from 'vm2'
-import fs from 'fs/promises'
-import { isNamedType } from 'graphql/type/definition.js'
-import * as vm from 'vm';
-import { PrivateKey } from '@hiveio/dhive'
-import Crypto from 'crypto'
-import { HiveClient, unwrapDagJws } from '../utils'
-import { init } from '../transactions/core'
-import { ContractManifest } from '../../chainstate-lib/types/contracts'
+import { BlockHeader, PrivateKey } from '@hiveio/dhive'
 import Axios from 'axios'
-import { CoreBaseTransaction, CoreTransactionTypes, CreateContract, Deposit, EnableWitness, JoinContract, LeaveContract, WithdrawFinalization, WithdrawRequest } from '../../lib/types/coreTransactions'
-import { ContractInput, VSCTransactionTypes } from '../../lib/types/vscTransactions'
+import BloomFilters from 'bloom-filters'
+import Crypto from 'crypto'
+import fs from 'fs/promises'
+import { Collection, ObjectId, WithId } from 'mongodb'
+import { CID } from 'multiformats'
+import * as vm from 'vm'
+import { CoreService } from '.'
+import { HiveClient } from '../../chainstate-lib/fastStreamHIVE'
+import { JwsHelper } from '../../chainstate-lib/jwsHelper'
+import { ContractManifest } from '../../chainstate-lib/types/contracts'
+import { CoreBaseTransaction, CoreTransactionTypes, CreateContract, DepositAction, EnableWitness, JoinContract, LeaveContract, WithdrawRequest } from '../../chainstate-lib/types/coreTransactions'
+import { ContractInput, TransactionContainer, TransactionDbRecord, TransactionDbStatus, TransactionDbType, TransactionRaw, VSCTransactionTypes } from '../../chainstate-lib/types/vscTransactions'
 import { PeerChannel } from './pubsub'
-import { DepositAction } from '../../chainstate-lib/types/coreTransactions'
 const {BloomFilter} = BloomFilters
 
 const INDEX_RULES = {}
@@ -77,7 +68,7 @@ export class TransactionPoolService {
     let lock_block = 'null'
 
     if(latestBlockHeader) {
-      lock_block = latestBlockHeader.id
+      lock_block = (latestBlockHeader as any).id
     }
 
     const txContainer: TransactionContainer = {
@@ -347,7 +338,7 @@ export class TransactionPoolService {
         local = false;
 
         const transactionRaw: ContractInput = (await this.self.ipfs.dag.get(CID.parse(txId))).value
-        const {content, auths: authsOut} = await unwrapDagJws(transactionRaw, this.self.ipfs, this.self.identity)
+        const {content, auths: authsOut} = await JwsHelper.unwrapDagJws(transactionRaw, this.self.ipfs, this.self.identity)
         auths = authsOut;
         
         await this.transactionPool.findOneAndUpdate({

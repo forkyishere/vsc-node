@@ -2,15 +2,14 @@
  * The gateway controller is designed to provide an API for 3rd party secondary nodes to interface with a central tasking/queue management node.
  * This handles job creation, job assignment, job tracking, managing clustered nodes, etc.
  */
-import { TransactionDbStatus } from '../../types'
-import { unwrapDagJws } from '../../utils'
-import { BadRequestException, Body, HttpCode, HttpStatus, Post, Put, Query } from '@nestjs/common'
-import { Controller, Get, Param } from '@nestjs/common'
+import { Body, Controller, Post } from '@nestjs/common'
 import { ObjectId } from 'bson'
 import { CID } from 'kubo-rpc-client'
-import { appContainer } from './index'
 import winston from 'winston'
+import { JwsHelper } from '../../../chainstate-lib/jwsHelper'
+import { TransactionDbStatus } from '../../../chainstate-lib/types/vscTransactions'
 import { getLogger } from '../../logger'
+import { appContainer } from './index'
 
 @Controller(`/api/v1/gateway`)
 export class ApiController {
@@ -43,7 +42,7 @@ export class ApiController {
 
     const dagJws = await appContainer.self.ipfs.dag.get(cid)
 
-    const decodedContent = await unwrapDagJws(
+    const decodedContent = await JwsHelper.unwrapDagJws(
       dagJws.value,
       appContainer.self.ipfs,
       appContainer.self.identity,

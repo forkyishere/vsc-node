@@ -5,14 +5,14 @@ import jsonpatch from 'fast-json-patch'
 import SHA256 from 'crypto-js/sha256'
 import enchex from 'crypto-js/enc-hex'
 import { CoreService } from './index'
-import { verifyMultiDagJWS, Benchmark } from '../utils'
 import { Contract, ContractCommitment } from '../../chainstate-lib/types/contracts'
-import { ContractOutput } from '../../lib/types/vscTransactions'
 import { DID } from 'dids'
 import { CustomJsonOperation, TransferOperation } from '@hiveio/dhive'
-import { BlockRef } from '@/types'
 import { parseTxHex, reverse } from '../scripts/bitcoin-wrapper/utils'
 import { utils, BTCUtils, ser, ValidateSPV } from '@summa-tx/bitcoin-spv-js'
+import { Benchmark } from '@/utils'
+import { BlockRef } from '../../chainstate-lib/types/blockData'
+import { ContractOutput } from '../../chainstate-lib/types/vscTransactions'
 
 
 export type HiveOps = CustomJsonOperation | TransferOperation
@@ -427,7 +427,7 @@ export class ContractEngine {
       }
 
       
-      const includedRecord = await this.self.chainBridge.blockHeaders.findOne({
+      const includedRecord = await this.self.chainStateLib.blockHeaders.findOne({
         id: op.included_in
       })
 

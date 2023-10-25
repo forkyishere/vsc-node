@@ -36,7 +36,7 @@ export class DelayMonitor {
     async runMark() {
         await this.delayMarks.insertOne({
             ts: new Date(),
-            value: this.self.chainBridge.hiveStream.blockLag
+            value: this.self.chainStateLib.chainParserHIVE.hiveStream.blockLag
         })
         await this.delayMarks.deleteMany({
             _id: {

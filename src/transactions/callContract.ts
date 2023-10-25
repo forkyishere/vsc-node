@@ -1,21 +1,12 @@
-import {init} from './core'
-import {HiveClient} from '../utils'
-import { PrivateKey } from '@hiveio/dhive'
-import Axios from 'axios'
-import { TransactionPoolService } from '../services/transactionPool'
 import { CoreService } from '../services/index'
-import { getLogger } from '../logger'
+import { TransactionPoolService } from '../services/transactionPool'
 
 void (async () => {
     const contract_id = process.argv[2]
     const action = process.argv[3]
     const payload = process.argv[4]
 
-    const core = new CoreService({
-        prefix: 'manual tx core',
-        printMetadata: true,
-        level: 'debug',
-      })
+    const core = new CoreService()
 
     // sample usage
     // node --experimental-specifier-resolution=node --loader ts-node/esm src/transactions/callContract.ts <contract_id> <contract_method> <parameters>

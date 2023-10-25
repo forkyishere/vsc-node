@@ -1,25 +1,28 @@
-import { Collection, Join } from "mongodb"
-import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, DepositAction, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
-import { ChainParserEvents, ChainStateLib } from "./ChainStateLib"
 import { CID } from "kubo-rpc-client/dist/src"
+import { ChainParserEvents, ChainStateLib } from "./ChainStateLib"
+import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, DepositAction, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
 // import { TransactionPoolService } from "@/services/transactionPool"
+import { DidAuth } from "@/types"
 import { networks } from "bitcoinjs-lib"
+import Pushable from 'it-pushable'
+import moment from "moment"
+import { DepositHelper } from "./depositHelper"
 import { BalanceController, Deposit, TimeLock, WithdrawLock } from "./types/balanceData"
 import { BlockRef } from "./types/blockData"
-import { Contract, CommitmentStatus, ContractCommitment } from "./types/contracts"
+import { CommitmentStatus, Contract, ContractCommitment } from "./types/contracts"
 import { TransactionDbStatus } from "./types/vscTransactions"
-import { DepositHelper } from "./depositHelper"
-import Pushable from 'it-pushable'
-import pushable from "it-pushable"
-import EventEmitter from 'events'
-import { FastStream, HiveClient, unwrapDagJws } from '../utils'
-import { DidAuth } from "@/types"
+import { FastStream, HiveClient } from "./fastStreamHIVE"
 
 export class ChainParserHIVE {
+  public vscBlockStream: Pushable.Pushable<any>; // pla: note only use this.self.events for extensions as vscBlockStream is reserved for chainParserVSC
+  public hiveStream: FastStream
+  public block_height: number
+  public syncedAt: Date | null
   private self: ChainStateLib
 
   constructor(self: ChainStateLib) {
     this.self = self
+    this.syncedAt = null
   }
 
   private async enableWitness(account: string, enableWitnessTx: EnableWitness) {
@@ -293,6 +296,7 @@ export class ChainParserHIVE {
       // TODONEW: DONT DO HERE, DO ON EVENT EMIT?
       // pla: TODO STORE in a database so the tasks for the multisig allowed nodes are not lost on restart
       // this.multiSigWithdrawBuffer.push(deposit);
+      this.self.events.emit(ChainParserEvents.VerifiedWithdrawRequest, deposit)
     }
   }
 
@@ -368,9 +372,7 @@ export class ChainParserHIVE {
     }
   }
 
-  // TODONEW, pla: still a lot of room for future refactors
-  async streamStart() {
-
+  async getStartBlockHeight() {
     const network_id = this.self.config.get('network.id')
 
     this.self.logger.debug('current network_id', network_id)
@@ -392,6 +394,13 @@ export class ChainParserHIVE {
       startBlock = block_height;
     }
 
+    return startBlock
+  }
+
+  // TODONEW, pla: still a lot of room for future refactors
+  async streamStart() {
+    const startBlock = await this.getStartBlockHeight()
+
     this.self.logger.debug('starting block stream at height', startBlock)
     this.hiveStream = await FastStream.create({
       //startBlock: networks[network_id].genesisDay,
@@ -403,14 +412,14 @@ export class ChainParserHIVE {
 
         for await (let [block_height, block] of this.hiveStream.streamOut) {
           this.block_height = block_height;
-          for(let tx of block.transactions) {
+          for (let tx of block.transactions) {
             try {
               const headerOp = tx.operations[tx.operations.length - 1]
-              if(headerOp[0] === "custom_json") {
+              if (headerOp[0] === "custom_json") {
                 if (headerOp[1].required_posting_auths.includes(networks[this.self.config.get('network.id')].multisigAccount)) {
                   try {
                     const json = JSON.parse(headerOp[1].json)
-                    
+
                     await this.self.transactionPool.findOneAndUpdate({
                       id: json.ref_id
                     }, {
@@ -419,46 +428,46 @@ export class ChainParserHIVE {
                       }
                     })
                   } catch {
-    
+
                   }
                 }
               }
-              for(let [op_id, payload] of tx.operations) {
+              for (let [op_id, payload] of tx.operations) {
                 // if(payload.json_metadata && payload.memo_key) {
                 //   console.log(op_id, payload)
                 // }
-                
-                if(op_id === "account_update") {
+
+                if (op_id === "account_update") {
                   try {
                     const json_metadata = JSON.parse(payload.json_metadata)
                     if (json_metadata.vsc_node) {
                       const { payload: proof, kid } = await this.self.identity.verifyJWS(json_metadata.vsc_node.signed_proof)
                       const [did] = kid.split('#')
                       console.log(proof)
-    
-    
+
+
                       const witnessRecord = await this.self.witnessDb.findOne({
                         account: payload.account
                       }) || {} as any
-    
+
                       const opts = {}
-                      if((witnessRecord.enabled === true && proof.witness.enabled === false) || typeof witnessRecord.disabled_at === 'undefined') {
+                      if ((witnessRecord.enabled === true && proof.witness.enabled === false) || typeof witnessRecord.disabled_at === 'undefined') {
                         opts['disabled_at'] = block_height
                         opts["disabled_reason"] = proof.witness.disabled_reason
-                      } else if((proof.witness.enabled === true && typeof witnessRecord.disabled_at === 'number') || typeof witnessRecord.enabled_at === 'undefined' ) {
+                      } else if ((proof.witness.enabled === true && typeof witnessRecord.disabled_at === 'number') || typeof witnessRecord.enabled_at === 'undefined') {
                         opts['enabled_at'] = block_height
                         opts['disabled_at'] = null
                         opts['disabled_reason'] = null
                       }
-    
-                      if(json_metadata.did_auths) {
+
+                      if (json_metadata.did_auths) {
                         const did_auths = json_metadata.did_auths as DidAuth
-    
+
                         const currentDidAuths = (await this.self.didAuths.find({
                           account: payload.account,
-                          did: {$in: Object.keys(did_auths)}
+                          did: { $in: Object.keys(did_auths) }
                         }).toArray())
-    
+
                         await this.self.didAuths.updateMany({
                           _id: {
                             $nin: currentDidAuths.map(e => e._id)
@@ -468,15 +477,15 @@ export class ChainParserHIVE {
                             valid_to: payload.account
                           }
                         })
-    
+
                         const unindexdDids = did_auths
-                        for(let cta of currentDidAuths) {
-                          if(unindexdDids[cta.did] && unindexdDids[cta.did].ats === cta.authority_type) {
+                        for (let cta of currentDidAuths) {
+                          if (unindexdDids[cta.did] && unindexdDids[cta.did].ats === cta.authority_type) {
                             delete unindexdDids[cta.did];
                           }
                         }
-    
-                        for(let [did, val] of Object.entries(unindexdDids)) {
+
+                        for (let [did, val] of Object.entries(unindexdDids)) {
                           await this.self.didAuths.findOneAndUpdate({
                             did: did,
                             account: payload.account,
@@ -494,7 +503,7 @@ export class ChainParserHIVE {
                           })
                         }
                       }
-    
+
                       await this.self.witnessDb.findOneAndUpdate({
                         account: payload.account,
                       }, {
@@ -514,7 +523,7 @@ export class ChainParserHIVE {
                         upsert: true
                       })
                     }
-                  } catch(ex) {
+                  } catch (ex) {
                     console.log(ex)
                   }
                 }
@@ -525,7 +534,7 @@ export class ChainParserHIVE {
                       account: payload.required_posting_auths[0],
                       block_height,
                       timestamp: new Date(block.timestamp + "Z")
-                    })   
+                    })
                   }
                 } else if (op_id === "transfer") {
                   // console.log(payload)
@@ -533,25 +542,25 @@ export class ChainParserHIVE {
                   if ([payload.to, payload.from].includes(networks[this.self.config.get('network.id')].multisigAccount)) {
                     if (payload.memo) {
                       const json = JSON.parse(payload.memo)
-                        await this.processCoreTransaction(tx, json, {
-                          account: payload.from, // from or payload.required_posting_auths[0]?
-                          block_height,
-                          timestamp: new Date(block.timestamp + "Z"),
-                          amount : payload.amount,
-                          to: payload.to,
-                          memo: payload.memo
-                        })
+                      await this.processCoreTransaction(tx, json, {
+                        account: payload.from, // from or payload.required_posting_auths[0]?
+                        block_height,
+                        timestamp: new Date(block.timestamp + "Z"),
+                        amount: payload.amount,
+                        to: payload.to,
+                        memo: payload.memo
+                      })
                     } else {
                       this.self.logger.warn('received transfer without memo, considering this a donation as we cant assign it to a specific network', payload)
-                    }     
-                  }         
-                }  
-              }           
-            } catch(ex) {
+                    }
+                  }
+                }
+              }
+            } catch (ex) {
               console.log(ex)
             }
           }
-  
+
           if (this.self.config.get('debug.debugNodeAddresses')?.includes(this.self.config.get('identity.nodePublic'))) {
             this.self.logger.debug(`current block_head height ${block_height}`)
           }
@@ -568,7 +577,7 @@ export class ChainParserHIVE {
               upsert: true,
             },
           )
-  
+
           // TODONEW, think about if this is the right way of doing it
           this.self.events.emit(ChainParserEvents.HiveBlock, block_height, block)
         }
@@ -583,44 +592,19 @@ export class ChainParserHIVE {
 
   }
 
-   /**
-   * Verifies streaming is working correctly
-   */
-   async streamCheck() {
+  /**
+  * Verifies streaming is working correctly
+  */
+  async streamCheck() {
     this.self.events.emit(ChainParserEvents.StreamCheck)
-    // if (this.hiveStream.blockLag > 300 && typeof this.hiveStream.blockLag === 'number') {
-    //   // await this.self.nodeInfo.announceNode({
-    //   //   action: "disable_witness",
-    //   //   disable_reason: "sync_fail"
-    //   // })
-
-      
-    //   await this.self.nodeInfo.setStatus({
-    //     id: "out_of_sync",
-    //     action: "disable_witness",
-    //     expires: moment().add('1', 'day').toDate()
-    //   })
-    // }
 
     if (this.syncedAt !== null) {
       if (this.hiveStream.blockLag > 300) {
-        // await this.self.nodeInfo.announceNode({
-        //   action: "disable_witness",
-        //   disable_reason: "sync_fail"
-        // })
 
-        await this.self.nodeInfo.setStatus({
-          id: "out_of_sync",
-          action: "disable_witness",
-          expires: moment().add('1', 'day').toDate()
-        })
-
-
+        this.self.events.emit(ChainParserEvents.StreamOutOfSync)
         this.hiveStream.killStream()
         this.streamStart()
         this.syncedAt = null
-
-
         return;
       }
       if (moment.isDate(this.hiveStream.lastBlockTs) && moment().subtract('1', 'minute').toDate().getTime() > this.hiveStream.lastBlockTs.getTime()) {
@@ -637,42 +621,35 @@ export class ChainParserHIVE {
     if (this.syncedAt === null && typeof this.hiveStream.blockLag === 'number' && this.hiveStream.blockLag < 5) {
       console.log('[streamCheck] System synced!')
       this.syncedAt = new Date();
-      await this.self.nodeInfo.nodeStatus.deleteMany({
-        id: "out_of_sync",
-      })
+      this.self.events.emit(ChainParserEvents.StreamSynced)
     }
   }
 
-  public vscBlockStream: Pushable.Pushable<any>; // pla: note only use this.self.events for extensions as vscBlockStream is reserved for chainParserVSC
-  public hiveStream: FastStream
-  private block_height: number
-
   async streamStateNotifier() {
     let blkNum;
-    setInterval(async() => {
+    setInterval(async () => {
       const diff = (blkNum - this.hiveStream.blockLag) || 0
       blkNum = this.hiveStream.blockLag
-      
+
       this.self.logger.info(`current block lag ${this.hiveStream.blockLag} ${Math.round(diff / 15)}`)
       const stateHeader = await this.self.stateHeaders.findOne({
         id: 'hive_head'
       })
-      if(stateHeader) {
+      if (stateHeader) {
         this.self.logger.info(`current parse lag ${this.hiveStream.calcHeight - stateHeader.block_num}`, stateHeader)
       }
     }, 15 * 1000)
   }
-  
+
   async start() {
     this.vscBlockStream = Pushable()
 
-    if(this.self.config.get('node.storageType') !== 'lite') {
+    if (this.self.config.get('node.storageType') !== 'lite') {
 
       setInterval(() => {
         this.streamCheck()
       }, 5000)
 
-      // TODONEW, maybe figure out what can still be structured otherwise in terms of laying off logic to FastStreamHIVE, specifically mean code from streamstart/ streamStateNotifier
       await this.streamStart()
 
       await this.streamStateNotifier()

@@ -1,8 +1,5 @@
-import { PrivateKey } from '@hiveio/dhive'
-import Axios from 'axios'
-import {init} from './core'
-import {HiveClient} from '../utils'
 import { TransactionPoolService } from '../services/transactionPool'
+import { init } from './core'
 
 void (async () => {
     const setup: {identity, config, ipfsClient, logger} = await init()

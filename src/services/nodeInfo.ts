@@ -1,9 +1,10 @@
 import { PrivateKey } from "@hiveio/dhive";
 import NodeSchedule from 'node-schedule'
-import { getCommitHash, HiveClient, ModuleContainer } from "../utils";
 import { CoreService, } from "./index";
 import moment from "moment";
 import { Collection } from "mongodb";
+import { getCommitHash } from "@/utils";
+import { HiveClient } from "../../chainstate-lib/fastStreamHIVE";
 
 
 export class NodeInfoService {

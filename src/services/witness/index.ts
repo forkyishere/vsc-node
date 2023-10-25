@@ -1,17 +1,9 @@
-import { Collection } from "mongodb";
-import Crypto from 'crypto'
-import { Ed25519Provider } from "key-did-provider-ed25519";
-import KeyResolver from 'key-did-resolver'
-import { DID } from "dids";
-import shuffleSeed from 'shuffle-seed'
-import { CoreService } from "../";
-import { HiveClient } from "../../utils";
 import moment from "moment";
-import { createSafeDivision } from "./multisig";
-import { DelayMonitor } from "./delayMonitor";
+import { Collection } from "mongodb";
+import { CoreService } from "../";
+import { HiveClient } from "../../../chainstate-lib/fastStreamHIVE";
 import networks from "../networks";
-
-
+import { DelayMonitor } from "./delayMonitor";
 
 export class WitnessService {
   self: CoreService

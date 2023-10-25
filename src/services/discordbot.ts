@@ -9,7 +9,7 @@ import {
   } from 'discord.js'
 import { Table } from 'embed-table';
 import { CoreService } from '.'
-import { HiveClient } from '../utils'
+import { HiveClient } from '../../chainstate-lib/fastStreamHIVE';
   
   export class DiscordBot {
     client: Client<boolean>
@@ -57,7 +57,7 @@ import { HiveClient } from '../utils'
         console.log(txData)
         if(txData) {
             if(arg2 === "blockinfo") {
-                const blockInfo = await this.self.chainBridge.blockHeaders.findOne({id:txData.included_in})
+                const blockInfo = await this.self.chainStateLib.blockHeaders.findOne({id:txData.included_in})
 
                 console.log(blockInfo)
                 const tx = await HiveClient.database.getTransaction(blockInfo.hive_ref_tx)

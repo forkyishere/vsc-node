@@ -1,15 +1,11 @@
-import 'dotenv/config'
+import 'dotenv/config';
 import * as IPFS from "kubo-rpc-client";
-import { IPFSHTTPClient } from "kubo-rpc-client";
-import Path from 'path'
-import os from 'os'
-import Crypto from 'crypto'
 
-import { Ed25519Provider } from "key-did-provider-ed25519";
 import { DID } from "dids";
-import KeyResolver from 'key-did-resolver'
-import { Config } from "../services/nodeConfig";
+import { Ed25519Provider } from "key-did-provider-ed25519";
+import KeyResolver from 'key-did-resolver';
 import { getLogger } from '../logger';
+import { Config } from "../services/nodeConfig";
 
 let identity = null;
 

@@ -1,13 +1,7 @@
 
-import EventEmitter from 'events'
 //import PQueue from 'p-queue'
-import { BlockchainMode, BlockchainStreamOptions, Client } from '@hiveio/dhive'
-import Pushable from 'it-pushable'
-import { DagJWS, DID } from 'dids'
-import PQueue from 'p-queue'
-import { IPFSHTTPClient } from 'kubo-rpc-client'
+import { DID, DagJWS } from 'dids'
 import winston from 'winston'
-import Axios from 'axios'
 import { getLogger } from './logger'
 
 export const OFFCHAIN_HOST = process.env.OFFCHAIN_HOST || "https://us-01.infra.3speak.tv/v1/graphql"

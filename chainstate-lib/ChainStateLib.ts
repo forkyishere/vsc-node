@@ -49,8 +49,11 @@ export interface ILogger {
 
 export enum ChainParserEvents {
     StreamCheck = 'hive_stream_check',
+    StreamSynced = 'hive_stream_synced',
+    StreamOutOfSync = 'hive_stream_out_of_sync',
     HiveBlock = 'hive_block',
     VscBlock = 'vsc_block',
+    VerifiedWithdrawRequest = 'verified_withdraw_request',
 }
 
 export class ChainStateLib implements IChainStateLib {

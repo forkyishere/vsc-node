@@ -1,5 +1,4 @@
 import { Collection } from "mongodb";
-import { ChainStateLib } from "./ChainStateLib";
 import { Deposit, DepositDrain } from "./types/balanceData";
 import { BlockRef } from "./types/blockData";
 

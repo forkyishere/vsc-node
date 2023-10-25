@@ -1,13 +1,11 @@
 import EventEmitter from 'events'
 //import PQueue from 'p-queue'
-import { BlockchainMode, BlockchainStreamOptions, Client } from '@hiveio/dhive'
-import Pushable from 'it-pushable'
-import { DagJWS, DID } from 'dids'
-import PQueue from 'p-queue'
-import { IPFSHTTPClient } from 'kubo-rpc-client'
-import winston from 'winston'
+import { Client } from '@hiveio/dhive'
 import Axios from 'axios'
-import { getLogger } from './logger'
+import Pushable from 'it-pushable'
+import PQueue from 'p-queue'
+import winston from 'winston'
+import { getLogger } from '@/logger'
 
 const HIVE_API = process.env.HIVE_HOST || 'https://hive-api.web3telekom.xyz'
 
