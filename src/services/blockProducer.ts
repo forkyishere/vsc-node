@@ -1,11 +1,20 @@
 import dhive, { PrivateKey } from '@hiveio/dhive'
-import { TransactionDbStatus, VSCTransactionTypes } from '../../chainstate-lib/types/vscTransactions'
+import { TransactionDbStatus, TransactionDbType, VSCTransactionTypes } from '../../chainstate-lib/types/vscTransactions'
 import { CoreTransactionTypes } from '../../chainstate-lib/types/coreTransactions'
-import { HiveClient } from '../../chainstate-lib/FastStreamHIVE'
 import { BlockRecord } from '../../chainstate-lib/types/blockData'
+import { networks } from 'bitcoinjs-lib'
+import { DagJWS } from 'dids'
+import { CID } from 'kubo-rpc-client/dist/src'
+import { CoreService } from '.'
+import { HiveClient } from '../../chainstate-lib/fastStreamHIVE'
 
 export class BlockProducer {
   hiveKey: dhive.PrivateKey
+  self: CoreService
+
+  constructor(self: CoreService) {
+    this.self = self
+  }
 
   async createBlock() {
     const txs = await this.self.transactionPool.transactionPool
@@ -60,7 +69,7 @@ export class BlockProducer {
       }
     }
 
-    const previousBlock = await this.blockHeaders.findOne(
+    const previousBlock = await this.self.chainStateLib.blockHeaders.findOne(
       {},
       {
         sort: {
@@ -109,41 +118,44 @@ export class BlockProducer {
 
   async start() {
     if (this.self.config.get('node.storageType') !== 'lite') {
+      const network_id = this.self.config.get('network.id')
 
       if (process.env.HIVE_ACCOUNT_POSTING) {
         this.hiveKey = PrivateKey.fromString(process.env.HIVE_ACCOUNT_POSTING)
       }
 
       let producingBlock = false;
-      setInterval(async () => {
-        if (this.hiveStream.blockLag < 5) {
-          //Can produce a block
-          const offsetBlock = this.hiveStream.lastBlock //- networks[network_id].genesisDay
-          if ((offsetBlock % networks[network_id].roundLength) === 0) {
-            if (!producingBlock) {
-              const nodeInfo = await this.witnessDb.findOne({
-                did: this.self.identity.id
-              })
-              if (nodeInfo) {
-                const scheduleSlot = this.self.witness.witnessSchedule?.find((e => {
-                  return e.bn === offsetBlock
-                }))
-                //console.log('scheduleSlot', scheduleSlot, offsetBlock)
-                if (nodeInfo.enabled) {
+      setInterval(() => {
+        (async () => {
+          if (this.self.chainStateLib.chainParserHIVE.hiveStream.blockLag < 5) {
+            //Can produce a block
+            const offsetBlock = this.self.chainStateLib.chainParserHIVE.hiveStream.lastBlock //- networks[network_id].genesisDay
+            if ((offsetBlock % networks[network_id].roundLength) === 0) {
+              if (!producingBlock) {
+                const nodeInfo = await this.self.chainStateLib.witnessDb.findOne({
+                  did: this.self.identity.id
+                })
+                if (nodeInfo) {
+                  const scheduleSlot = this.self.witness.witnessSchedule?.find((e => {
+                    return e.bn === offsetBlock
+                  }))
+                  //console.log('scheduleSlot', scheduleSlot, offsetBlock)
+                  if (nodeInfo.enabled) {
 
 
-                  if (scheduleSlot?.did === this.self.identity.id) {
-                    this.self.logger.info('Can produce block!! at', this.hiveStream.lastBlock)
-                    producingBlock = true;
-                    await this.createBlock()
+                    if (scheduleSlot?.did === this.self.identity.id) {
+                      this.self.logger.info('Can produce block!! at', this.self.chainStateLib.chainParserHIVE.hiveStream.lastBlock)
+                      producingBlock = true;
+                      await this.createBlock()
+                    }
                   }
                 }
               }
+            } else {
+              producingBlock = false;
             }
-          } else {
-            producingBlock = false;
           }
-        }
+        })();
       }, 300)
     }
   }
