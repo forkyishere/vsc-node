@@ -5,7 +5,7 @@ import Axios from 'axios'
 import Pushable from 'it-pushable'
 import PQueue from 'p-queue'
 import winston from 'winston'
-import { getLogger } from '@/logger'
+import { ChainStateLib, IChainStateLib, ILogger } from './ChainStateLib'
 
 const HIVE_API = process.env.HIVE_HOST || 'https://hive-api.web3telekom.xyz'
 
@@ -28,18 +28,19 @@ export class FastStream {
     queue: PQueue
     headHeight: number
     headTracker: NodeJS.Timer
-    logger: winston.Logger
     finalStream: NodeJS.ReadableStream
     lastBlockAt: Date
     lastBlock: number
     lastBlockTs: Date
     aborts: Array<AbortController>
+    logger: ILogger;
 
-    constructor(queue: PQueue, streamOpts: {
+    constructor(logger: ILogger, queue: PQueue, streamOpts: {
         startBlock: number,
         endBlock?: number
         trackHead?: boolean
     }) {
+        this.logger = logger;
         this.queue = queue
         this.events = new EventEmitter()
         this.streamOut = Pushable()
@@ -51,13 +52,6 @@ export class FastStream {
 
         this.blockMap = {}
         this.aborts = []
-
-        this.logger = getLogger({
-            prefix: 'faststream',
-            printMetadata: true,
-            level: 'debug',
-        })
-
 
         this.startStream = this.startStream.bind(this)
         this.resumeStream = this.resumeStream.bind(this)
@@ -85,7 +79,6 @@ export class FastStream {
                 }
             }
         }, 1)
-
     }
 
     get calcHeight() {
@@ -219,7 +212,7 @@ export class FastStream {
         await this.queue.onIdle();
     }
 
-    static async create(streamOpts: { startBlock: number, endBlock?: number, trackHead?: boolean }) {
+    static async create(logger: ILogger, streamOpts: { startBlock: number, endBlock?: number, trackHead?: boolean }) {
         const PQueue = (await import('p-queue')).default
         const queue = new PQueue({ concurrency: 2 })
         if (!streamOpts.endBlock) {
@@ -228,7 +221,7 @@ export class FastStream {
             streamOpts.endBlock = block_height;
         }
 
-        return new FastStream(queue, streamOpts)
+        return new FastStream(logger, queue, streamOpts)
     }
 }
 

@@ -2,11 +2,11 @@ import dhive, { PrivateKey } from '@hiveio/dhive'
 import { TransactionDbStatus, TransactionDbType, VSCTransactionTypes } from '../../chainstate-lib/types/vscTransactions'
 import { CoreTransactionTypes } from '../../chainstate-lib/types/coreTransactions'
 import { BlockRecord } from '../../chainstate-lib/types/blockData'
-import { networks } from 'bitcoinjs-lib'
 import { DagJWS } from 'dids'
 import { CID } from 'kubo-rpc-client/dist/src'
 import { CoreService } from '.'
 import { HiveClient } from '../../chainstate-lib/fastStreamHIVE'
+import networks from './networks'
 
 export class BlockProducer {
   hiveKey: dhive.PrivateKey

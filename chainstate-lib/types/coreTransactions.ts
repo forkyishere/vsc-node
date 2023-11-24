@@ -17,6 +17,7 @@ export interface DepositAction extends CoreBaseTransaction {
 export interface WithdrawRequest extends CoreBaseTransaction {
   action: CoreTransactionTypes.withdraw_request;
   amount: number;
+  to?: string; // pla: withdraw to someone elses account
 }
 
 export interface WithdrawFinalization extends CoreBaseTransaction {

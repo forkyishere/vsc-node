@@ -1,3 +1,5 @@
+import { Network } from "../../chainstate-lib/types/network";
+
 export default {
     //LEGACY DONT USE
     "testnet/ab8b6cf1-b344-4ad3-8f81-f2d72c61f6b2": {
@@ -29,9 +31,4 @@ export default {
         consensusRoundLength: 10,
         multisigAccount: 'vsc.ptk-d12e6110'
     }
-} as Record<string, {
-    genesisDay: number,
-    roundLength: number
-    totalRounds: number
-    multisigAccount?: string
-}>
+} as Record<string, Network>

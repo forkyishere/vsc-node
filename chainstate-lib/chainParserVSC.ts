@@ -1,8 +1,9 @@
-import { CID } from "kubo-rpc-client/dist/src";
+
 import { ChainParserEvents, ChainStateLib } from "./ChainStateLib";
 import { ContractInput, ContractOutput, TransactionConfirmed, TransactionDbStatus, TransactionDbType, VSCTransactionTypes } from "./types/vscTransactions";
 import { JwsHelper } from "./jwsHelper";
 import NodeSchedule from 'node-schedule'
+import { CID } from 'multiformats/cid'
 
 export class ChainParserVSC {
   private self: ChainStateLib;

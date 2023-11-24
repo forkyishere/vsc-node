@@ -7,6 +7,7 @@ import * as IPFSHTTP from "kubo-rpc-client";
 import { MongoClient } from "mongodb";
 import winston from "winston";
 import { ChainStateLib, IChainStateLib, IChainStateLibConfig } from "../chainstate-lib/ChainStateLib";
+import networks from "../src/services/networks";
 
 class Config implements IChainStateLibConfig {
     config: any;
@@ -29,7 +30,7 @@ class Config implements IChainStateLibConfig {
 async function startup(): Promise<void> {
     const config = new Config(process.env.CONFIG_PATH)
 
-    const mongoClient = new MongoClient(process.env.MONGO_HOST || '127.0.0.1:27017')
+    const mongoClient = new MongoClient(process.env.MONGO_HOST || 'mongodb://127.0.0.1:27017')
     const db = mongoClient.db('vsc')
 
     const ipfs = IPFSHTTP.create({ url: process.env.IPFS_HOST || config.get('ipfs.apiAddr') || '127.0.0.1:5001'});
@@ -43,12 +44,12 @@ async function startup(): Promise<void> {
 
     const logger = winston.createLogger()
 
-    const chainStateLib: IChainStateLib = new ChainStateLib(db, ipfs, identity, logger)
+    const chainStateLib: IChainStateLib = new ChainStateLib(db, ipfs, identity, logger, networks)
 
     chainStateLib.setConfig(config)
 
     chainStateLib.chainParserHIVE.start()
-    chainStateLib.chainParserVSC.start()
+    // chainStateLib.chainParserVSC.start()
 }
 
 void startup()

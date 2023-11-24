@@ -1,15 +1,14 @@
-import { CID } from "kubo-rpc-client/dist/src"
+import { CID } from 'multiformats/cid'
 import { ChainParserEvents, ChainStateLib } from "./ChainStateLib"
 import { AllowWitness, AnnounceBlock, CoreBaseTransaction, CoreTransactionTypes, CreateContract, DepositAction, DissallowWitness, EnableWitness, JoinContract, LeaveContract, TxMetadata, WithdrawFinalization, WithdrawRequest } from "./types/coreTransactions"
 // import { TransactionPoolService } from "@/services/transactionPool"
 import { DidAuth } from "@/types"
-import { networks } from "bitcoinjs-lib"
 import Pushable from 'it-pushable'
 import moment from "moment"
 import { DepositHelper } from "./depositHelper"
 import { BalanceController, Deposit, TimeLock, WithdrawLock } from "./types/balanceData"
 import { BlockRef } from "./types/blockData"
-import { CommitmentStatus, Contract, ContractCommitment } from "./types/contracts"
+import { CommitmentStatus, Contract, ContractCommitment } from './types/contracts';
 import { TransactionDbStatus } from "./types/vscTransactions"
 import { FastStream, HiveClient } from "./fastStreamHIVE"
 
@@ -70,7 +69,7 @@ export class ChainParserHIVE {
 
       }
     } else {
-      this.self.logger.warn(`received transaction with high lag. Possible replay attack - ${tx.transaction_id}`)
+      this.self.logger.warn(`received transaction with high lag. Possible replay attack - ${hiveTimestamp}`)
     }
   }
 
@@ -93,7 +92,7 @@ export class ChainParserHIVE {
 
       }
     } else {
-      this.self.logger.warn(`received transaction with high lag. Possible replay attack - ${tx.transaction_id}`)
+      this.self.logger.warn(`received transaction with high lag. Possible replay attack - ${hiveTimestamp}`)
     }
   }
 
@@ -198,12 +197,12 @@ export class ChainParserHIVE {
         }
       })
     } else {
-      this.self.logger.warn('not able to leave contract commitment', tx.transaction_id)
+      this.self.logger.warn('not able to leave contract commitment', leaveContractTx.contract_id)
     }
   }
 
   private async deposit(tx: any, depositTx: DepositAction, txInfo: TxMetadata) {
-    if (txInfo.to === networks[this.self.config.get('network.id')].multisigAccount) {
+    if (txInfo.to === this.self.networks[this.self.config.get('network.id')].multisigAccount) {
       const balanceController = { type: 'HIVE', authority: depositTx.to ?? txInfo.account, conditions: [] } as BalanceController
 
       const transferedCurrency = DepositHelper.parseFormattedAmount(txInfo.amount);
@@ -266,7 +265,7 @@ export class ChainParserHIVE {
 
       const multisigBalanceController = {
         type: 'HIVE',
-        authority: networks[this.self.config.get('network.id')].multisigAccount,
+        authority: this.self.networks[this.self.config.get('network.id')].multisigAccount,
         conditions: [
           {
             type: 'WITHDRAW',
@@ -301,7 +300,7 @@ export class ChainParserHIVE {
   }
 
   private async withdrawFinalization(tx: any, withdrawFinalizationTx: WithdrawFinalization, txInfo: TxMetadata) {
-    if (tx.from === networks[this.self.config.get('network.id')].multisigAccount) {
+    if (tx.from === this.self.networks[this.self.config.get('network.id')].multisigAccount) {
       const transferedCurrency = DepositHelper.parseFormattedAmount(txInfo.amount);
 
       const deposit = await this.self.balanceDb.findOne({ id: withdrawFinalizationTx.deposit_id })
@@ -359,6 +358,9 @@ export class ChainParserHIVE {
       case CoreTransactionTypes.deposit:
         this.deposit(tx, <DepositAction>json, txInfo)
         break;
+      case CoreTransactionTypes.withdraw_request:
+        this.withdrawRequest(tx, <WithdrawRequest>json, txInfo)
+        break;
       case CoreTransactionTypes.withdraw_finalization:
         this.withdrawFinalization(tx, <WithdrawFinalization>json, txInfo)
         break;
@@ -382,7 +384,7 @@ export class ChainParserHIVE {
         (await this.self.stateHeaders.findOne({
           id: 'hive_head',
         })) || ({} as any)
-      ).block_num || networks[network_id].genesisDay
+      ).block_num || this.self.networks[network_id].genesisDay
 
     if (this.self.config.get('debug.startBlock') !== undefined && this.self.config.get('debug.startBlock') !== null) {
       startBlock = +this.self.config.get('debug.startBlock');
@@ -391,7 +393,8 @@ export class ChainParserHIVE {
     if (this.self.config.get('debug.startAtCurrentBlock')) {
       const currentBlock = await HiveClient.blockchain.getCurrentBlock();
       const block_height = parseInt(currentBlock.block_id.slice(0, 8), 16);
-      startBlock = block_height;
+      // pla: small workarround, we get issues when we start at the live block with the parser height, so we start 50 blocks before
+      startBlock = block_height - 50;
     }
 
     return startBlock
@@ -402,21 +405,20 @@ export class ChainParserHIVE {
     const startBlock = await this.getStartBlockHeight()
 
     this.self.logger.debug('starting block stream at height', startBlock)
-    this.hiveStream = await FastStream.create({
-      //startBlock: networks[network_id].genesisDay,
+    this.hiveStream = await FastStream.create(this.self.logger, {
+      //startBlock: networks[network_id].genesisDay, 
       startBlock: startBlock,
       trackHead: true
     })
     void (async () => {
       try {
-
         for await (let [block_height, block] of this.hiveStream.streamOut) {
           this.block_height = block_height;
           for (let tx of block.transactions) {
             try {
               const headerOp = tx.operations[tx.operations.length - 1]
               if (headerOp[0] === "custom_json") {
-                if (headerOp[1].required_posting_auths.includes(networks[this.self.config.get('network.id')].multisigAccount)) {
+                if (headerOp[1].required_posting_auths.includes(this.self.networks[this.self.config.get('network.id')].multisigAccount)) {
                   try {
                     const json = JSON.parse(headerOp[1].json)
 
@@ -539,7 +541,7 @@ export class ChainParserHIVE {
                 } else if (op_id === "transfer") {
                   // console.log(payload)
                   // checking for to and from tx to be the multisig account, because all other transfers are not related to vsc
-                  if ([payload.to, payload.from].includes(networks[this.self.config.get('network.id')].multisigAccount)) {
+                  if ([payload.to, payload.from].includes(this.self.networks[this.self.config.get('network.id')].multisigAccount)) {
                     if (payload.memo) {
                       const json = JSON.parse(payload.memo)
                       await this.processCoreTransaction(tx, json, {
@@ -585,7 +587,9 @@ export class ChainParserHIVE {
         console.log(ex)
       }
     })()
+
     this.hiveStream.startStream()
+    
   }
 
   async streamStop() {

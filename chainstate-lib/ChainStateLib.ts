@@ -12,6 +12,8 @@ import { Contract, ContractCommitment } from "./types/contracts";
 import { DepositHelper } from "./depositHelper";
 import { Deposit } from "./types/balanceData";
 import EventEmitter from 'events';
+import { networks } from 'bitcoinjs-lib';
+import { Network } from "./types/network";
 
 export interface IChainStateLib {
     chainParserVSC: ChainParserVSC;
@@ -73,14 +75,16 @@ export class ChainStateLib implements IChainStateLib {
     public depositHelper: DepositHelper;
     public config: IChainStateLibConfig;
     public events: EventEmitter // pla: maybe switch out with something more efficient from rxjs     
+    public networks: Record<string, Network>
     private db: Db;
 
-    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger) {
+    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger, networks: Record<string, Network>) {
         this.events = new EventEmitter()
         this.db = db;
         this.ipfs = ipfs;
         this.identity = identity;
         this.logger = logger;
+        this.networks = networks;
         this.stateHeaders = this.db.collection('state_headers');
         this.blockHeaders = this.db.collection<BlockHeader>('block_headers');
         this.witnessDb = this.db.collection('witnesses');

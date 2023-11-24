@@ -11,8 +11,15 @@ void (async () => {
 
     const setup: {identity, config, ipfsClient, logger} = await init()
 
+    let to;
+    let toArg  = process.argv.find(arg => arg.startsWith('--to='))
+    if (toArg) {
+        to = toArg.split('=')[1]
+    }
+
     await TransactionPoolService.withdraw({
-        amount: +process.argv[2]
+        amount: +process.argv[2],
+        to: to
     },
     setup);
 

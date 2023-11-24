@@ -196,13 +196,14 @@ export class TransactionPoolService {
     return result;
   }
 
-  static async withdraw(args: { amount: number}, setup: {identity, config, ipfsClient, logger}) {
+  static async withdraw(args: { amount: number, to?: string }, setup: {identity, config, ipfsClient, logger}) {
     setup.logger.info(`Withdrawing funds (${args.amount}) from personal account`)
 
     const json = {
       net_id: setup.config.get('network.id'),
       amount: args.amount,
-      action: CoreTransactionTypes.withdraw_request
+      action: CoreTransactionTypes.withdraw_request,
+      to: args.to
     } as WithdrawRequest
 
     const result = await TransactionPoolService.createCoreTransaction("vsc.withdraw_request", json, setup)
