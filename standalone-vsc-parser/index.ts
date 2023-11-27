@@ -44,12 +44,12 @@ async function startup(): Promise<void> {
 
     const logger = winston.createLogger()
 
-    const chainStateLib: IChainStateLib = new ChainStateLib(db, ipfs, identity, logger, networks)
+    const chainStateLib: IChainStateLib = new ChainStateLib()
 
-    chainStateLib.setConfig(config)
+    chainStateLib.init(config, db, ipfs, identity, logger, networks)
 
     chainStateLib.chainParserHIVE.start()
-    // chainStateLib.chainParserVSC.start()
+    chainStateLib.chainParserVSC.start()
 }
 
 void startup()

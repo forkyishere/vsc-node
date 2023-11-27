@@ -3,7 +3,7 @@ import NodeSchedule from 'node-schedule'
 import { CoreService, } from "./index";
 import moment from "moment";
 import { Collection } from "mongodb";
-import { getCommitHash } from "@/utils";
+import { getCommitHash } from "../utils";
 import { HiveClient } from "../../chainstate-lib/fastStreamHIVE";
 
 

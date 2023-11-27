@@ -3,8 +3,8 @@ import moment from 'moment'
 import hive from '@hiveio/hive-js'
 import { CoreService } from "..";
 import { WitnessService } from ".";
-import { calcBlockInterval } from "@/utils";
 import { HiveClient } from "../../../chainstate-lib/fastStreamHIVE";
+import { calcBlockInterval } from "../../utils";
 
 hive.api.setOptions({ url: 'https://api.hive.blog' })
 

@@ -10,9 +10,10 @@ import { DID } from 'dids'
 import { CustomJsonOperation, TransferOperation } from '@hiveio/dhive'
 import { parseTxHex, reverse } from '../scripts/bitcoin-wrapper/utils'
 import { utils, BTCUtils, ser, ValidateSPV } from '@summa-tx/bitcoin-spv-js'
-import { Benchmark } from '@/utils'
 import { BlockRef } from '../../chainstate-lib/types/blockData'
 import { ContractOutput } from '../../chainstate-lib/types/vscTransactions'
+import { DepositHelper } from '../../chainstate-lib/depositHelper';
+import { Benchmark } from '../utils'
 
 
 export type HiveOps = CustomJsonOperation | TransferOperation
@@ -476,7 +477,7 @@ export class ContractEngine {
               transferFunds: this.transferFunds,
               withdrawFunds: this.withdrawFunds,
               getBalance: (accountId: string) => {
-                return this.self.chainBridge.calculateBalanceSum(accountId, {
+                return this.self.chainStateLib.depositHelper.calculateBalanceSum(accountId, {
                   // pla: TODO, NEED TO SUPPLY CURRENT BLOCK INFORMATION IN ORDER TO CALC THE BALANCE
                 } as BlockRef, id)
               }

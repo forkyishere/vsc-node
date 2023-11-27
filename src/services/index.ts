@@ -52,12 +52,6 @@ export class CoreService extends ModuleContainer {
     constructor() {
         super('core')
 
-        this.logger = getLogger(this.loggerSettings || {
-            prefix: 'core',
-            printMetadata: this.config.get('logger.printMetadata'),
-            level: this.config.get('logger.level'),
-        })
-
         this.transactionPool = new TransactionPoolService(this)
         this.chainBridge = new ChainBridge(this)
         this.contractEngine = new ContractEngine(this)
@@ -67,8 +61,7 @@ export class CoreService extends ModuleContainer {
         this.witness = new WitnessService(this)
         this.multisig = new MultisigCore(this, this.witness)
         this.discordBot = new DiscordBot(this)
-        this.chainStateLib = new ChainStateLib(this.db, this.ipfs, this.identity, this.logger)
-
+        this.chainStateLib = new ChainStateLib()
 
         this.regModule('TransactionPoolService', this.transactionPool)
         this.regModule('ChainBridge', this.chainBridge)
@@ -166,27 +159,26 @@ export class CoreService extends ModuleContainer {
         console.log('Starting')
         this.config = new Config(Config.getConfigDir())
         await this.config.open()
-        this.chainStateLib.setConfig(this.config)
-
+        this.logger = getLogger(this.loggerSettings || {
+            prefix: 'core',
+            printMetadata: this.config.get('logger.printMetadata'),
+            level: this.config.get('logger.level'),
+        })
         this.ipfs = IPFSHTTP.create({ url: process.env.IPFS_HOST || this.config.get('ipfs.apiAddr')});
         this.networkId = this.config.get('network.id')
         this.db = this.config.get('setupIdentification.dbSuffix') !== undefined && this.config.get('setupIdentification.dbSuffix') !== '' ? mongo.db('vsc-' + this.config.get('setupIdentification.dbSuffix')) : mongo.db('vsc')
+        await this.setupKeys();
+        this.chainStateLib.init(this.config, this.db, this.ipfs, this.identity, this.logger, networks)
 
         await mongo.connect()
         if (this.config.get('debug.dropTablesOnStartup')) {
             await this.dropTables();
         }     
 
-        await this.setupKeys();
-
         console.log('Starting part way')
-
-        
-        
 
         const startStack = await this.startModules()
         console.log(`Startup complete with ${startStack.length} exceptions`)
-
     }
 
     async stop() {

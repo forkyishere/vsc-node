@@ -12,7 +12,6 @@ import { Contract, ContractCommitment } from "./types/contracts";
 import { DepositHelper } from "./depositHelper";
 import { Deposit } from "./types/balanceData";
 import EventEmitter from 'events';
-import { networks } from 'bitcoinjs-lib';
 import { Network } from "./types/network";
 
 export interface IChainStateLib {
@@ -27,8 +26,9 @@ export interface IChainStateLib {
     didAuths: Collection;
     contractDb: Collection<Contract>;
     logger: ILogger;
+    depositHelper: DepositHelper;
     registerModules(registerMethod: (name: string, regClass: object) => void): Promise<void>;
-    setConfig(config: IChainStateLibConfig): void;
+    init(config: IChainStateLibConfig, db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger, networks: Record<string, Network>): void;
     events: EventEmitter;
 }
 
@@ -78,8 +78,14 @@ export class ChainStateLib implements IChainStateLib {
     public networks: Record<string, Network>
     private db: Db;
 
-    constructor(db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger, networks: Record<string, Network>) {
+    constructor() {
         this.events = new EventEmitter()
+        this.chainParserHIVE = new ChainParserHIVE(this);
+        this.chainParserVSC = new ChainParserVSC(this);
+    }
+
+    public init(config: IChainStateLibConfig, db: Db, ipfs: IPFSHTTPClient, identity: DID, logger: ILogger, networks: Record<string, Network>) {
+        this.config = config;
         this.db = db;
         this.ipfs = ipfs;
         this.identity = identity;
@@ -93,17 +99,11 @@ export class ChainStateLib implements IChainStateLib {
         this.contractCommitmentDb = this.db.collection('contract_commitment')
         this.didAuths = this.db.collection('did_auths');
         this.contractDb = this.db.collection('contracts');        
-        this.chainParserHIVE = new ChainParserHIVE(this);
-        this.chainParserVSC = new ChainParserVSC(this);
-        this.depositHelper = new DepositHelper(this.balanceDb);    
-    }
-
-    public setConfig(config: IChainStateLibConfig) {
-        this.config = config;
+        this.depositHelper = new DepositHelper(this.balanceDb);
     }
 
     public async registerModules(registerMethod: (name: string, regClass: object) => void) {
-        registerMethod('ChainParserVSC', this.chainParserVSC);
         registerMethod('ChainParserHIVE', this.chainParserHIVE);
+        registerMethod('ChainParserVSC', this.chainParserVSC);
     }
 }

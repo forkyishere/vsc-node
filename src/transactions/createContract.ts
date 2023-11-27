@@ -9,7 +9,7 @@ void (async () => {
     const execPath = process.argv[4]
 
     // sample usage
-    // node --experimental-specifier-resolution=node --loader ts-node/esm src/transactions/createContract.ts testname "test description" src/services/contracts/basic-contract.js
+    // node --experimental-specifier-resolution=node --loader ts-node/esm src/transactions/createContract.ts testname "test description" contracts/example.js
     const setup: {identity, config, ipfsClient, logger} = await init()
 
     if(!execPath) {
