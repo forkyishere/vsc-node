@@ -35,7 +35,10 @@ export async function init() {
     const identity = new DID({ provider: keyPrivate, resolver: KeyResolver.getResolver() })
     await identity.authenticate()
     if(!process.env.HIVE_ACCOUNT_POSTING || !process.env.HIVE_ACCOUNT_ACTIVE) {
-        throw new Error("No HIVE account found in .env file")
+        throw new Error("Need both POSTING/ACTIVE HIVE keys in .env file")
+    }
+    if(!process.env.HIVE_ACCOUNT) {
+        throw new Error("No HIVE account name found in .env file")
     }
 
     logger.info(`Logged In With ${identity.id} and ${process.env.HIVE_ACCOUNT} connected to ipfs gw: ${config.get('ipfs.apiAddr')}`)
