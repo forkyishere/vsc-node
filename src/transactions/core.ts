@@ -34,7 +34,7 @@ export async function init() {
     const keyPrivate = new Ed25519Provider(Buffer.from(privateKey, 'base64'))
     const identity = new DID({ provider: keyPrivate, resolver: KeyResolver.getResolver() })
     await identity.authenticate()
-    if(!process.env.HIVE_ACCOUNT_POSTING || !process.env.HIVE_ACCOUNT_POSTING) {
+    if(!process.env.HIVE_ACCOUNT_POSTING || !process.env.HIVE_ACCOUNT_ACTIVE) {
         throw new Error("No HIVE account found in .env file")
     }
 
