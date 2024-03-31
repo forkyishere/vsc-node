@@ -11,8 +11,12 @@ void (async () => {
     const authority_type = process.argv[3]
 
     if(!process.env.HIVE_ACCOUNT_POSTING || !process.env.HIVE_ACCOUNT_ACTIVE) {
-        throw new Error("No HIVE account found in .env file")
+        throw new Error("Need both POSTING/ACTIVE HIVE keys in .env file")
     }
+    if(!process.env.HIVE_ACCOUNT) {
+        throw new Error("No HIVE account name found in .env file")
+    }
+
 
     const hiveAccount = process.env.HIVE_ACCOUNT
 
